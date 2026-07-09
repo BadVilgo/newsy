@@ -7,8 +7,6 @@ import type { Box as BoxType, Snapshot } from '@/lib/types';
 import BoxCard from './Box';
 import AddBox from './AddBox';
 
-// Zarządza całym stanem tablicy: pobiera boxy, dodaje/usuwa/edytuje, odświeża.
-// Stan trwały żyje w bazie (Supabase); tutaj trzymamy tylko lokalną kopię do renderu.
 export default function Dashboard({ username }: { username: string }) {
   const router = useRouter();
   const supabase = createClient();
@@ -32,7 +30,6 @@ export default function Dashboard({ username }: { username: string }) {
 
   useEffect(() => {
     loadBoxes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function addBox(topic: string) {
@@ -63,8 +60,6 @@ export default function Dashboard({ username }: { username: string }) {
     }
   }
 
-  // Odświeżenie boxa dokłada nowy snapshot na początek listy (staje się "24h",
-  // poprzedni schodzi do "24-48h"). Zwracamy status, żeby Box mógł pokazać błąd/limit.
   async function refreshBox(id: string): Promise<{ ok: boolean; error?: string }> {
     const res = await fetch('/api/refresh', {
       method: 'POST',

@@ -3,8 +3,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
-// Odświeża sesję Supabase przy każdym żądaniu (wymagane przez @supabase/ssr)
-// i chroni dashboard: niezalogowany użytkownik jest przekierowany na /login.
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -50,6 +48,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Pomija zasoby statyczne i endpoint cron (cron uwierzytelnia się własnym sekretem).
   matcher: ['/((?!_next/static|_next/image|favicon.ico|api/cron).*)'],
 };

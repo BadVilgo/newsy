@@ -1,6 +1,3 @@
-/* Szkielet stylów — warstwa wizualna do rozbudowy później.
-   Celowo minimalne, żeby dashboard był czytelny podczas pracy nad funkcjonalnością. */
-
 * {
   box-sizing: border-box;
 }

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-// GET /api/boxes — lista boxów zalogowanego użytkownika wraz z ostatnimi dwoma
-// snapshotami każdego (24h + 24-48h). RLS gwarantuje, że wracają tylko własne dane.
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -21,7 +19,6 @@ export async function GET() {
   return NextResponse.json({ boxes: boxes ?? [] });
 }
 
-// POST /api/boxes — nowy box z tematem. { topic: string }
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -33,7 +30,6 @@ export async function POST(request: Request) {
   const topic = String(body.topic || '').trim();
   if (!topic) return NextResponse.json({ error: 'Podaj temat.' }, { status: 400 });
 
-  // Nowy box na koniec listy (position = max + 1).
   const { data: last } = await supabase
     .from('boxes')
     .select('position')

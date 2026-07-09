@@ -1,6 +1,5 @@
 import { createBrowserClient } from '@supabase/ssr';
 
-// Klient używany w komponentach klienckich (przeglądarka).
 export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

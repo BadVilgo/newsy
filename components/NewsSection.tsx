@@ -1,6 +1,5 @@
 import type { Snapshot } from '@/lib/types';
 
-// Renderuje jedną sekcję newsów (24h albo 24-48h) na podstawie snapshotu.
 export default function NewsSection({
   label,
   snapshot,

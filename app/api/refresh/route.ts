@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { refreshTopic, RateLimitError } from '@/lib/gemini';
 
-// Odświeżanie jednego boxa mieści się w limicie funkcji serverless.
 export const maxDuration = 60;
 
-// POST /api/refresh — ręczne odświeżenie jednego boxa. { boxId: string }
-// Zaciąga świeże newsy przez Gemini i zapisuje jako nowy snapshot.
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -18,7 +15,6 @@ export async function POST(request: Request) {
   const boxId = String(body.boxId || '');
   if (!boxId) return NextResponse.json({ error: 'Brak boxId.' }, { status: 400 });
 
-  // RLS: zapytanie zwróci box tylko jeśli należy do zalogowanego użytkownika.
   const { data: box, error: boxError } = await supabase
     .from('boxes')
     .select('id, topic')

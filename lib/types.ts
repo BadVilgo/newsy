@@ -13,6 +13,5 @@ export type Box = {
   topic: string;
   position: number;
   created_at: string;
-  // Najnowsze najpierw: snapshots[0] = "24h", snapshots[1] = "24-48h".
   snapshots: Snapshot[];
 };

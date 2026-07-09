@@ -1,12 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
-// Dwustopniowy pipeline przeniesiony 1:1 z prototypu (server.js):
-//   Krok 1 — Flash + Google Search zbiera 20-25 surowych newsów z ostatnich 24h.
-//   Krok 2 — drugi Flash w roli "redaktora" wybiera 4 najważniejsze (bez własnego
-//            wyszukiwania, więc zostaje w darmowym tierze).
-// Do każdego wybranego newsa dopinane są źródła przez mapowanie groundingSupports
-// (segmenty tekstu -> indeksy chunków) na numery pozycji, po zachodzeniu offsetów.
-
 export type Source = { title: string; url: string };
 export type Bullet = { text: string; sources: Source[] };
 
@@ -29,8 +22,6 @@ function getClient(): GoogleGenAI {
   return client;
 }
 
-// Parsuje ponumerowaną listę "1. tekst\n2. tekst...", zapamiętując offset znakowy
-// każdej pozycji — potrzebne, żeby dopasować groundingSupports (też w offsetach znaków).
 function parseNumberedItems(text: string): NumberedItem[] {
   const items: NumberedItem[] = [];
   const lineRegex = /^\s*(\d+)\.\s*(.+)$/;
@@ -46,13 +37,11 @@ function parseNumberedItems(text: string): NumberedItem[] {
         endOffset: startOffset + match[2].length,
       });
     }
-    offset += line.length + 1; // +1 za usunięty znak '\n'
+    offset += line.length + 1;
   }
   return items;
 }
 
-// Mapuje groundingSupports (segmenty tekstu -> indeksy chunków źródeł) na numery
-// pozycji z parseNumberedItems, na podstawie zachodzenia offsetów.
 function mapSourcesToItems(
   groundingSupports: any[] | undefined,
   items: NumberedItem[],
@@ -79,7 +68,6 @@ export function isRateLimitError(err: unknown): boolean {
   return message.includes('429') || message.includes('RESOURCE_EXHAUSTED');
 }
 
-// Klasa błędu, którą API routes mogą zamienić na status 429 (wyczerpany darmowy limit).
 export class RateLimitError extends Error {
   constructor(message = 'Wyczerpano dzienny darmowy limit zapytań do Gemini.') {
     super(message);
@@ -87,10 +75,6 @@ export class RateLimitError extends Error {
   }
 }
 
-/**
- * Zaciąga i wybiera 4 najważniejsze newsy z ostatnich 24h dla podanego tematu.
- * Zwraca listę bulletów z dopiętymi źródłami. Rzuca RateLimitError przy 429.
- */
 export async function refreshTopic(topic: string): Promise<Bullet[]> {
   const trimmed = topic.trim();
   if (!trimmed) throw new Error('Podaj temat.');
@@ -98,7 +82,6 @@ export async function refreshTopic(topic: string): Promise<Bullet[]> {
   const ai = getClient();
 
   try {
-    // Krok 1: Flash + Google Search — szybkie, darmowe zebranie surowych newsów.
     const flashResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: `Znajdź w Google 20-25 najnowszych newsów i doniesień z ostatnich 24 godzin na temat: "${trimmed}". Zwróć ponumerowaną listę po polsku, każda pozycja to jeden numer, jeden krótki nagłówek + jednozdaniowa zajawka, format: "1. <nagłówek>: <zajawka>". Bez wstępu, bez podsumowania, tylko ponumerowana lista.`,
@@ -119,8 +102,6 @@ export async function refreshTopic(topic: string): Promise<Bullet[]> {
     const groundingSupports = flashCandidate?.groundingMetadata?.groundingSupports || [];
     const itemSourceMap = mapSourcesToItems(groundingSupports, items);
 
-    // Krok 2: drugie wywołanie Flash w roli redaktora — tylko rozumowanie nad gotową
-    // listą, bez własnego wyszukiwania (zostaje w darmowym tierze Flasha).
     const rawList = items.map((item) => `${item.number}. ${item.text}`).join('\n');
     const editorResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash',

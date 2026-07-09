@@ -3,8 +3,6 @@ import { cookies } from 'next/headers';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
-// Klient serwerowy (API routes, Server Components). Czyta/zapisuje sesję z ciasteczek.
-// Dzięki RLS każde zapytanie automatycznie widzi tylko dane zalogowanego użytkownika.
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -21,9 +19,7 @@ export async function createClient() {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options),
             );
-          } catch {
-            // setAll wywołane z Server Component — można zignorować, sesję odświeża middleware.
-          }
+          } catch {}
         },
       },
     },

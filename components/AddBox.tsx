@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 
-// Formularz dodawania nowego boxa (jeden temat = jeden box).
 export default function AddBox({ onAdd }: { onAdd: (topic: string) => Promise<void> }) {
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);

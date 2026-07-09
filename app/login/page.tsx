@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { usernameToEmail, isValidUsername, USERNAME_PATTERN } from '@/lib/username';
 
-// Prosty ekran logowania/rejestracji na zwykły LOGIN (nie e-mail).
-// Login zamieniany jest wewnętrznie na syntetyczny adres e-mail dla Supabase Auth.
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import type { Box as BoxType } from '@/lib/types';
 import NewsSection from './NewsSection';
 
-// Pojedynczy box: temat (edytowalny), przyciski odśwież/usuń oraz dwie sekcje newsów.
 export default function BoxCard({
   box,
   onDelete,
@@ -21,8 +20,8 @@ export default function BoxCard({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const recent = box.snapshots[0]; // "24h"
-  const previous = box.snapshots[1]; // "24-48h"
+  const recent = box.snapshots[0];
+  const previous = box.snapshots[1];
 
   async function handleRefresh() {
     setRefreshing(true);
