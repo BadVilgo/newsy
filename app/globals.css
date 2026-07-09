@@ -1,0 +1,28 @@
+/* Szkielet stylów — warstwa wizualna do rozbudowy później.
+   Celowo minimalne, żeby dashboard był czytelny podczas pracy nad funkcjonalnością. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 24px;
+  color: #1a1a1a;
+  background: #fafafa;
+  line-height: 1.5;
+}
+
+a {
+  color: #2563eb;
+}
+
+button {
+  cursor: pointer;
+  font: inherit;
+}
+
+input {
+  font: inherit;
+}

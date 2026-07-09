@@ -1,0 +1,45 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 700px;
+  margin: 40px auto;
+  padding: 0 16px;
+  color: #222;
+}
+
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#topic {
+  flex: 1;
+  padding: 8px;
+  font-size: 16px;
+}
+
+#go {
+  padding: 8px 16px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+#status {
+  color: #666;
+  margin-bottom: 12px;
+}
+
+#bullets li {
+  margin-bottom: 14px;
+}
+
+.bullet-sources {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #666;
+}
+
+.bullet-sources a {
+  word-break: break-all;
+}
