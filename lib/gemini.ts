@@ -84,7 +84,7 @@ export async function refreshTopic(topic: string): Promise<Bullet[]> {
   try {
     const flashResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `Znajdź w Google 20-25 najnowszych newsów i doniesień z ostatnich 24 godzin na temat: "${trimmed}". Zwróć ponumerowaną listę po polsku, każda pozycja to jeden numer, jeden krótki nagłówek + jednozdaniowa zajawka, format: "1. <nagłówek>: <zajawka>". Bez wstępu, bez podsumowania, tylko ponumerowana lista.`,
+      contents: `Znajdź w Google 20-25 najważniejszych newsów i doniesień z ostatnich 24 godzin na temat: "${trimmed}". Zwróć ponumerowaną listę po polsku, każda pozycja to jeden numer, jeden krótki nagłówek + jednozdaniowa zajawka, format: "1. <nagłówek>: <zajawka>". Bez wstępu, bez podsumowania, tylko ponumerowana lista.`,
       config: {
         tools: [{ googleSearch: {} }],
       },
