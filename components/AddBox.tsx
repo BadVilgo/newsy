@@ -17,25 +17,25 @@ export default function AddBox({ onAdd }: { onAdd: (topic: string) => Promise<vo
       await onAdd(trimmed);
       setTopic('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Błąd.');
+      setError(err instanceof Error ? err.message : 'Nie udało się dodać.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} style={{ display: 'flex', gap: 8 }}>
+    <form onSubmit={submit} className="add-row">
       <input
+        className="input"
         type="text"
         placeholder="np. spółka Nvidia giełda"
         value={topic}
         onChange={(e) => setTopic(e.target.value)}
-        style={{ flex: 1, padding: 8 }}
       />
-      <button type="submit" disabled={busy}>
-        {busy ? '…' : 'Dodaj box'}
+      <button type="submit" className="btn btn-primary" disabled={busy}>
+        {busy ? 'Dodawanie…' : 'Dodaj box'}
       </button>
-      {error && <span style={{ color: '#b91c1c', alignSelf: 'center' }}>{error}</span>}
+      {error && <span className="error" style={{ alignSelf: 'center' }}>{error}</span>}
     </form>
   );
 }

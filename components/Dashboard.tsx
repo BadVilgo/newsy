@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { Box as BoxType, Snapshot } from '@/lib/types';
 import BoxCard from './Box';
 import AddBox from './AddBox';
+import { NewsIcon } from './icons';
 
 export default function Dashboard({ username }: { username: string }) {
   const router = useRouter();
@@ -14,6 +15,8 @@ export default function Dashboard({ username }: { username: string }) {
   const [boxes, setBoxes] = useState<BoxType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragEnabledId, setDragEnabledId] = useState<string | null>(null);
 
   async function loadBoxes() {
     setLoading(true);
@@ -78,6 +81,30 @@ export default function Dashboard({ username }: { username: string }) {
     return { ok: true };
   }
 
+  function handleDragEnter(targetId: string) {
+    if (!draggingId || draggingId === targetId) return;
+    setBoxes((prev) => {
+      const from = prev.findIndex((b) => b.id === draggingId);
+      const to = prev.findIndex((b) => b.id === targetId);
+      if (from < 0 || to < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
+  async function handleDragEnd() {
+    const ordered = boxes;
+    setDraggingId(null);
+    setDragEnabledId(null);
+    await fetch('/api/boxes/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ordered.map((b) => b.id) }),
+    });
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     router.push('/login');
@@ -85,45 +112,64 @@ export default function Dashboard({ username }: { username: string }) {
   }
 
   return (
-    <main style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>Tablica tematów</h1>
-        <div style={{ fontSize: 14, color: '#555' }}>
-          {username} <button onClick={signOut}>Wyloguj</button>
+    <main className="container">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-logo">
+            <NewsIcon />
+          </span>
+          <div>
+            <div className="brand-name">
+              newsy<span className="accent">.live</span>
+            </div>
+            <div className="brand-sub">tablica tematów</div>
+          </div>
+        </div>
+        <div className="user-area">
+          <span className="avatar">{username.charAt(0) || '?'}</span>
+          {username}
+          <button className="btn" onClick={signOut}>
+            Wyloguj
+          </button>
         </div>
       </header>
 
       <AddBox onAdd={addBox} />
 
-      {error && <p style={{ color: '#b91c1c' }}>{error}</p>}
-      {loading && <p>Ładowanie…</p>}
-      {!loading && boxes.length === 0 && <p>Brak boxów. Dodaj pierwszy temat powyżej.</p>}
+      {error && <p className="error">{error}</p>}
+      {loading && <p className="hint">Ładowanie…</p>}
+      {!loading && boxes.length === 0 && (
+        <p className="hint">Brak boxów. Dodaj pierwszy temat powyżej.</p>
+      )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: 16,
-          marginTop: 16,
-        }}
-      >
+      <div className="box-grid">
         {boxes.map((box) => (
-          <BoxCard
+          <div
             key={box.id}
-            box={box}
-            onDelete={deleteBox}
-            onEdit={editBox}
-            onRefresh={refreshBox}
-          />
+            className={`grid-item${draggingId === box.id ? ' dragging' : ''}`}
+            draggable={dragEnabledId === box.id}
+            onDragStart={() => setDraggingId(box.id)}
+            onDragEnter={() => handleDragEnter(box.id)}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnd={handleDragEnd}
+          >
+            <BoxCard
+              box={box}
+              onDelete={deleteBox}
+              onEdit={editBox}
+              onRefresh={refreshBox}
+              onDragHandleDown={() => setDragEnabledId(box.id)}
+            />
+          </div>
         ))}
       </div>
+
+      {boxes.length > 0 && (
+        <div className="footer-note">
+          <span className="pulse-dot" />
+          auto-odświeżanie codziennie o 09:00
+        </div>
+      )}
     </main>
   );
 }
