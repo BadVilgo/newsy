@@ -3,7 +3,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 export type Source = { title: string; url: string };
 export type Bullet = { text: string; sources: Source[] };
 
-type NumberedItem = {
+export type NumberedItem = {
   number: number;
   text: string;
   startOffset: number;
@@ -22,7 +22,7 @@ function getClient(): GoogleGenAI {
   return client;
 }
 
-function parseNumberedItems(text: string): NumberedItem[] {
+export function parseNumberedItems(text: string): NumberedItem[] {
   const items: NumberedItem[] = [];
   const lineRegex = /^\s*(\d+)\.\s*(.+)$/;
   let offset = 0;
@@ -42,7 +42,7 @@ function parseNumberedItems(text: string): NumberedItem[] {
   return items;
 }
 
-function mapSourcesToItems(
+export function mapSourcesToItems(
   groundingSupports: any[] | undefined,
   items: NumberedItem[],
 ): Map<number, Set<number>> {

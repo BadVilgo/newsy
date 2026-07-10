@@ -1,5 +1,7 @@
 # Newsy - tablica tematów
 
+[![CI](https://github.com/BadVilgo/newsy/actions/workflows/ci.yml/badge.svg)](https://github.com/BadVilgo/newsy/actions/workflows/ci.yml)
+
 **Demo:** [newsy-nine.vercel.app](https://newsy-nine.vercel.app)
 
 Dashboard, na którym zalogowany użytkownik dodaje dowolną liczbę "boxów". Jeden box to jeden
@@ -57,6 +59,19 @@ jest wysyłany, to czysto techniczny szczegół.
   liczbie boxów.
 - Testów automatycznych - na tym etapie priorytetem była działająca integracja z realnymi API
   (Gemini, Supabase), nie pokrycie testami.
+
+## Testy i CI
+
+Unit testy (Vitest) pokrywają czystą logikę, którą najłatwiej zepsuć po cichu: parsowanie
+ponumerowanej listy i mapowanie źródeł z groundingu (`lib/gemini.test.ts`), mapowanie login
+na adres (`lib/username.test.ts`) oraz autoryzację endpointu cron (`app/api/cron/refresh/route.test.ts`).
+
+```
+npm test          # uruchom testy
+npm run typecheck # tsc --noEmit
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) na każdy push i PR odpala typecheck, testy i build.
 
 ## Struktura
 

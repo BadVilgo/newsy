@@ -3,7 +3,16 @@
 import { useState } from 'react';
 import type { Box as BoxType } from '@/lib/types';
 import NewsSection from './NewsSection';
-import { EditIcon, RefreshIcon, TrashIcon, CheckIcon, GripIcon } from './icons';
+import {
+  EditIcon,
+  RefreshIcon,
+  TrashIcon,
+  CheckIcon,
+  GripIcon,
+  AlertIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+} from './icons';
 
 const ACCENTS = ['#3fb6a8', '#e2554f', '#5aa9f0', '#e0a83f', '#9b8cff', '#4fbf7b'];
 
@@ -19,12 +28,18 @@ export default function BoxCard({
   onEdit,
   onRefresh,
   onDragHandleDown,
+  onMove,
+  isFirst,
+  isLast,
 }: {
   box: BoxType;
   onDelete: (id: string) => void;
   onEdit: (id: string, topic: string) => Promise<void>;
   onRefresh: (id: string) => Promise<{ ok: boolean; error?: string }>;
   onDragHandleDown: () => void;
+  onMove: (id: string, dir: -1 | 1) => void;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(box.topic);
@@ -34,6 +49,7 @@ export default function BoxCard({
 
   const recent = box.snapshots[0];
   const previous = box.snapshots[1];
+  const isRateLimit = /limit/i.test(error);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -64,7 +80,7 @@ export default function BoxCard({
         ) : (
           <div className="card-grip">
             <button
-              className="drag-handle"
+              className="drag-handle desktop-only"
               onMouseDown={onDragHandleDown}
               aria-label="Przeciągnij, aby zmienić kolejność"
               title="Przeciągnij, aby zmienić kolejność"
@@ -75,6 +91,22 @@ export default function BoxCard({
           </div>
         )}
         <div className="card-actions">
+          <button
+            className="icon-btn mobile-only"
+            onClick={() => onMove(box.id, -1)}
+            disabled={isFirst}
+            aria-label="Przenieś wyżej"
+          >
+            <ArrowUpIcon />
+          </button>
+          <button
+            className="icon-btn mobile-only"
+            onClick={() => onMove(box.id, 1)}
+            disabled={isLast}
+            aria-label="Przenieś niżej"
+          >
+            <ArrowDownIcon />
+          </button>
           {editing ? (
             <button className="icon-btn accent" onClick={saveEdit} aria-label="Zapisz">
               <CheckIcon />
@@ -108,7 +140,13 @@ export default function BoxCard({
           })}
         </p>
       )}
-      {error && <p className="error">{error}</p>}
+
+      {error && (
+        <div className={`banner ${isRateLimit ? 'banner-warning' : 'banner-error'}`}>
+          <AlertIcon />
+          <span>{isRateLimit ? 'Wyczerpano dzienny darmowy limit Gemini. Spróbuj ponownie jutro.' : error}</span>
+        </div>
+      )}
 
       <div className="tabs">
         <button

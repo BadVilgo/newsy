@@ -169,9 +169,8 @@ button {
 }
 
 .box-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  column-width: 340px;
+  column-gap: 16px;
 }
 
 .card {
@@ -472,14 +471,137 @@ button {
   min-width: 0;
 }
 
+.skeleton-title {
+  height: 15px;
+  width: 60%;
+  border-radius: 5px;
+  background: var(--border);
+}
+
+.skeleton-line {
+  height: 11px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  margin-top: 10px;
+}
+
+.skeleton-pulse {
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.empty-state {
+  border: 1px dashed var(--border-2);
+  border-radius: 12px;
+  padding: 36px 24px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.empty-icon {
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.empty-sub {
+  font-size: 13px;
+  margin: 0 0 18px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  color: var(--text-dim);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.banner-warning {
+  background: rgba(224, 168, 63, 0.1);
+  border: 1px solid rgba(224, 168, 63, 0.35);
+  color: #e7bd6a;
+}
+
+.banner-error {
+  background: rgba(240, 153, 154, 0.08);
+  border: 1px solid rgba(240, 153, 154, 0.3);
+  color: var(--danger);
+}
+
+.banner svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .user-name {
+    display: none;
+  }
+  .desktop-only {
+    display: none;
+  }
+  .mobile-only {
+    display: flex;
+  }
+}
+
 .grid-item {
+  break-inside: avoid;
+  margin-bottom: 16px;
   transition: opacity 0.15s;
 }
 
 .grid-item.dragging {
   opacity: 0.4;
-}
-
-.grid-item.drop-target .card {
-  border-color: var(--accent);
 }

@@ -64,8 +64,8 @@ export default function LoginPage() {
 
         {mode === 'signin' && (
           <p className="demo-hint">
-            Konto demo jest już wpisane — kliknij <strong>Zaloguj</strong>.<br />
-            login <code>{DEMO_USER}</code> · hasło <code>{DEMO_PASSWORD}</code>
+            Konto demo jest już stworzone - kliknij <strong>Zaloguj</strong>.<br />
+            Login: <code>{DEMO_USER}</code> · Hasło: <code>{DEMO_PASSWORD}</code>
           </p>
         )}
 

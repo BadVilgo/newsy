@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client';
 import type { Box as BoxType, Snapshot } from '@/lib/types';
 import BoxCard from './Box';
 import AddBox from './AddBox';
+import Skeleton from './Skeleton';
+import EmptyState from './EmptyState';
 import { NewsIcon } from './icons';
 
 export default function Dashboard({ username }: { username: string }) {
@@ -81,6 +83,14 @@ export default function Dashboard({ username }: { username: string }) {
     return { ok: true };
   }
 
+  async function persistOrder(ordered: BoxType[]) {
+    await fetch('/api/boxes/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ordered.map((b) => b.id) }),
+    });
+  }
+
   function handleDragEnter(targetId: string) {
     if (!draggingId || draggingId === targetId) return;
     setBoxes((prev) => {
@@ -98,11 +108,17 @@ export default function Dashboard({ username }: { username: string }) {
     const ordered = boxes;
     setDraggingId(null);
     setDragEnabledId(null);
-    await fetch('/api/boxes/reorder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ordered.map((b) => b.id) }),
-    });
+    await persistOrder(ordered);
+  }
+
+  async function moveBox(id: string, dir: -1 | 1) {
+    const idx = boxes.findIndex((b) => b.id === id);
+    const target = idx + dir;
+    if (idx < 0 || target < 0 || target >= boxes.length) return;
+    const next = [...boxes];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setBoxes(next);
+    await persistOrder(next);
   }
 
   async function signOut() {
@@ -127,7 +143,7 @@ export default function Dashboard({ username }: { username: string }) {
         </div>
         <div className="user-area">
           <span className="avatar">{username.charAt(0) || '?'}</span>
-          {username}
+          <span className="user-name">{username}</span>
           <button className="btn" onClick={signOut}>
             Wyloguj
           </button>
@@ -137,38 +153,43 @@ export default function Dashboard({ username }: { username: string }) {
       <AddBox onAdd={addBox} />
 
       {error && <p className="error">{error}</p>}
-      {loading && <p className="hint">Ładowanie…</p>}
-      {!loading && boxes.length === 0 && (
-        <p className="hint">Brak boxów. Dodaj pierwszy temat powyżej.</p>
-      )}
 
-      <div className="box-grid">
-        {boxes.map((box) => (
-          <div
-            key={box.id}
-            className={`grid-item${draggingId === box.id ? ' dragging' : ''}`}
-            draggable={dragEnabledId === box.id}
-            onDragStart={() => setDraggingId(box.id)}
-            onDragEnter={() => handleDragEnter(box.id)}
-            onDragOver={(e) => e.preventDefault()}
-            onDragEnd={handleDragEnd}
-          >
-            <BoxCard
-              box={box}
-              onDelete={deleteBox}
-              onEdit={editBox}
-              onRefresh={refreshBox}
-              onDragHandleDown={() => setDragEnabledId(box.id)}
-            />
+      {loading && <Skeleton count={3} />}
+
+      {!loading && boxes.length === 0 && <EmptyState onAdd={addBox} />}
+
+      {!loading && boxes.length > 0 && (
+        <>
+          <div className="box-grid">
+            {boxes.map((box, i) => (
+              <div
+                key={box.id}
+                className={`grid-item${draggingId === box.id ? ' dragging' : ''}`}
+                draggable={dragEnabledId === box.id}
+                onDragStart={() => setDraggingId(box.id)}
+                onDragEnter={() => handleDragEnter(box.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDragEnd={handleDragEnd}
+              >
+                <BoxCard
+                  box={box}
+                  onDelete={deleteBox}
+                  onEdit={editBox}
+                  onRefresh={refreshBox}
+                  onDragHandleDown={() => setDragEnabledId(box.id)}
+                  onMove={moveBox}
+                  isFirst={i === 0}
+                  isLast={i === boxes.length - 1}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {boxes.length > 0 && (
-        <div className="footer-note">
-          <span className="pulse-dot" />
-          auto-odświeżanie codziennie o 09:00
-        </div>
+          <div className="footer-note">
+            <span className="pulse-dot" />
+            auto-odświeżanie codziennie o 09:00
+          </div>
+        </>
       )}
     </main>
   );
