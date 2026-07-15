@@ -58,15 +58,6 @@ Logowanie działa na zwykłym loginie, nie na e-mailu - Supabase Auth wymaga jed
 pod spodem, więc `lib/username.ts` mapuje login na syntetyczny adres. Żaden e-mail nigdzie nie
 jest wysyłany, to czysto techniczny szczegół.
 
-## Czego tu świadomie nie ma
-
-- Warstwy wizualnej - inline style, brak design systemu. Najpierw dopiąłem funkcjonalność (CRUD,
-  auth, cron, cały pipeline AI), UI dochodzi w kolejnym kroku.
-- Równoległego odświeżania w cyklu dziennym - boxy odświeżają się jeden po drugim, żeby nie walić
-  w darmowy limit zapytań Gemini seriami równoległych żądań. Runner GitHuba nie ma limitu 60 s, więc
-  czas wykonania nie jest problemem.
-- Testów automatycznych - na tym etapie priorytetem była działająca integracja z realnymi API
-  (Gemini, Supabase), nie pokrycie testami.
 
 ## Testy i CI
 
@@ -120,6 +111,10 @@ lokalnie trzeba dodać w ustawieniach projektu na Vercel.
 
 Codzienne odświeżanie robi GitHub Actions (`.github/workflows/refresh.yml`), a nie Vercel Cron -
 pętla po boxach nie mieści się w limicie 60 s funkcji serverless na Hobby. Workflow odpala
-`scripts/refresh.ts` codziennie o 7:00 UTC (9:00 czasu polskiego latem, 8:00 zimą - harmonogram
-GitHub Actions jest w UTC i nie ogarnia zmiany czasu). Wymaga sekretów repo (Settings -> Secrets
-and variables -> Actions): `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+`scripts/refresh.ts` o 7:00 UTC (9:00 czasu polskiego latem, 8:00 zimą - harmonogram GitHub
+Actions jest w UTC i nie ogarnia zmiany czasu), z dwoma ponowieniami co 20 min (07:00 / 07:20 /
+07:40 UTC). Skrypt pomija boxy, które mają już świeży snapshot, więc kolejne przebiegi ponawiają
+tylko te, które padły - np. na przejściowe 503 od przeciążonego Gemini (dodatkowo każdy box ma
+jeszcze szybki retry w obrębie jednej próby). Ręczne "Run workflow" wymusza pełne odświeżenie.
+Wymaga sekretów repo (Settings -> Secrets and variables -> Actions): `GEMINI_API_KEY`,
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
