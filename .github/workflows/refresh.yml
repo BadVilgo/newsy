@@ -4,10 +4,12 @@ name: Daily refresh
 # nie na Vercelu — dzięki temu nie obowiązuje limit 60 s funkcji serverless.
 on:
   schedule:
+    # 3 próby co 20 min (07:00 / 07:20 / 07:40 UTC). Skrypt pomija boxy już świeże,
+    # więc kolejne przebiegi ponawiają tylko te, które padły (np. na 503 od Gemini).
     # UWAGA: GitHub Actions używa strefy UTC i nie ogarnia czasu letniego/zimowego.
     # 07:00 UTC = 09:00 PL latem (CEST), 08:00 PL zimą (CET).
-    - cron: '0 7 * * *'
-  workflow_dispatch: {} # przycisk "Run workflow" do ręcznego odpalenia/testów
+    - cron: '0,20,40 7 * * *'
+  workflow_dispatch: {} # przycisk "Run workflow" do ręcznego odpalenia/testów (wymusza pełne odświeżenie)
 
 # Gdyby przebieg się przeciągał, nie pozwól mu wisieć w nieskończoność.
 concurrency:
@@ -34,3 +36,5 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Ręczne uruchomienie odświeża wszystko; harmonogram tylko boxy nieświeże.
+          FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' }}

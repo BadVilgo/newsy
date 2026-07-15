@@ -49,6 +49,11 @@ Dostęp do danych jest pilnowany na poziomie bazy, nie tylko w kodzie API. Regu�
 [supabase/schema.sql](supabase/schema.sql) to polityki Row Level Security - nawet jakbym gdzieś
 zapomniał dopisać filtr po `user_id` w zapytaniu, Postgres i tak nie odda cudzych wierszy.
 
+Ręczne odświeżanie ([api/refresh](app/api/refresh/route.ts)) jest limitowane do 15 żądań na dobę
+na jeden adres IP - chroni płatne Gemini przed nadużyciem. Licznik siedzi w bazie (tabela
+`rate_limits` + atomowa funkcja `consume_rate_limit`), a nie w pamięci procesu, bo funkcje
+serverless na Vercelu są bezstanowe i kolejne żądania trafiają na różne instancje.
+
 Logowanie działa na zwykłym loginie, nie na e-mailu - Supabase Auth wymaga jednak adresu e-mail
 pod spodem, więc `lib/username.ts` mapuje login na syntetyczny adres. Żaden e-mail nigdzie nie
 jest wysyłany, to czysto techniczny szczegół.
