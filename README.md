@@ -19,7 +19,10 @@ zalogowaniu.
 - **Supabase (Postgres + Auth)** - relacyjna baza z Row Level Security zamiast pilnowania dostępu
   ręcznie w kodzie.
 - **Google Gemini 2.5 Flash + Google Search grounding** - do zbierania i selekcji newsów.
-- **Vercel + Vercel Cron** - deploy z GitHuba, serverless functions, wbudowany scheduler.
+- **Vercel** - deploy z GitHuba, serverless functions dla UI i akcji użytkownika.
+- **GitHub Actions (scheduled workflow)** - codzienne odświeżanie newsów. Pętla po wszystkich
+  boxach nie mieści się w limicie 60 s funkcji serverless na planie Hobby, więc ciężka robota
+  dzieje się na runnerze GitHuba (`scripts/refresh.ts`), a nie na Vercelu.
 
 Nie ma tu Reduxa, GraphQL ani mikroserwisów - projekt nie jest na tyle duży, żeby to miało sens.
 
@@ -54,9 +57,9 @@ jest wysyłany, to czysto techniczny szczegół.
 
 - Warstwy wizualnej - inline style, brak design systemu. Najpierw dopiąłem funkcjonalność (CRUD,
   auth, cron, cały pipeline AI), UI dochodzi w kolejnym kroku.
-- Równoległego odświeżania w cronie - boxy odświeżają się jeden po drugim, żeby nie walić w
-  darmowy limit zapytań Gemini seriami równoległych żądań. Kosztem czasu wykonania przy większej
-  liczbie boxów.
+- Równoległego odświeżania w cyklu dziennym - boxy odświeżają się jeden po drugim, żeby nie walić
+  w darmowy limit zapytań Gemini seriami równoległych żądań. Runner GitHuba nie ma limitu 60 s, więc
+  czas wykonania nie jest problemem.
 - Testów automatycznych - na tym etapie priorytetem była działająca integracja z realnymi API
   (Gemini, Supabase), nie pokrycie testami.
 
@@ -81,16 +84,18 @@ app/
   login/page.tsx            # logowanie / rejestracja na login (nie e-mail)
   api/boxes/                 # CRUD boxów
   api/refresh/                # ręczne odświeżenie jednego boxa
-  api/cron/refresh/           # codzienne odświeżenie wszystkich (Vercel Cron)
+  api/cron/refresh/           # odświeżenie wszystkich przez HTTP (chronione CRON_SECRET, opcjonalne)
+scripts/
+  refresh.ts                  # codzienne odświeżenie wszystkich (uruchamiane przez GitHub Actions)
 lib/
   gemini.ts                  # zbieranie i selekcja newsów
   username.ts                 # mapowanie login <-> syntetyczny e-mail
-  supabase/                   # klienci: przeglądarka / serwer / admin (service_role, cron)
+  supabase/                   # klienci: przeglądarka / serwer / admin (service_role)
   types.ts
 components/                   # Dashboard, Box, AddBox, NewsSection
 supabase/schema.sql           # tabele + polityki RLS
 middleware.ts                 # odświeżanie sesji Supabase + ochrona tras
-vercel.json                   # harmonogram Vercel Cron
+.github/workflows/refresh.yml # harmonogram codziennego odświeżania (GitHub Actions)
 ```
 
 ## Uruchomienie lokalne
@@ -106,5 +111,10 @@ vercel.json                   # harmonogram Vercel Cron
 ## Deploy
 
 Repo podpięte pod Vercel, push na `main` buduje i wdraża. Te same zmienne środowiskowe co
-lokalnie trzeba dodać w ustawieniach projektu na Vercel. `vercel.json` uruchamia
-`/api/cron/refresh` codziennie o 7:00 UTC, czyli 9:00 czasu polskiego latem.
+lokalnie trzeba dodać w ustawieniach projektu na Vercel.
+
+Codzienne odświeżanie robi GitHub Actions (`.github/workflows/refresh.yml`), a nie Vercel Cron -
+pętla po boxach nie mieści się w limicie 60 s funkcji serverless na Hobby. Workflow odpala
+`scripts/refresh.ts` codziennie o 7:00 UTC (9:00 czasu polskiego latem, 8:00 zimą - harmonogram
+GitHub Actions jest w UTC i nie ogarnia zmiany czasu). Wymaga sekretów repo (Settings -> Secrets
+and variables -> Actions): `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.

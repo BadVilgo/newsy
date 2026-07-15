@@ -1,0 +1,36 @@
+name: Daily refresh
+
+# Codzienne odświeżanie newsów. Robota dzieje się TU (na runnerze GitHuba),
+# nie na Vercelu — dzięki temu nie obowiązuje limit 60 s funkcji serverless.
+on:
+  schedule:
+    # UWAGA: GitHub Actions używa strefy UTC i nie ogarnia czasu letniego/zimowego.
+    # 07:00 UTC = 09:00 PL latem (CEST), 08:00 PL zimą (CET).
+    - cron: '0 7 * * *'
+  workflow_dispatch: {} # przycisk "Run workflow" do ręcznego odpalenia/testów
+
+# Gdyby przebieg się przeciągał, nie pozwól mu wisieć w nieskończoność.
+concurrency:
+  group: daily-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Odśwież newsy
+        run: npx tsx scripts/refresh.ts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
