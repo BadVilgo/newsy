@@ -111,9 +111,9 @@ lokalnie trzeba dodać w ustawieniach projektu na Vercel.
 
 Codzienne odświeżanie robi GitHub Actions (`.github/workflows/refresh.yml`), a nie Vercel Cron -
 pętla po boxach nie mieści się w limicie 60 s funkcji serverless na Hobby. Workflow odpala
-`scripts/refresh.ts` o 7:00 UTC (9:00 czasu polskiego latem, 8:00 zimą - harmonogram GitHub
-Actions jest w UTC i nie ogarnia zmiany czasu), z dwoma ponowieniami co 20 min (07:00 / 07:20 /
-07:40 UTC). Skrypt pomija boxy, które mają już świeży snapshot, więc kolejne przebiegi ponawiają
+`scripts/refresh.ts` o 3:18 UTC (5:18 czasu polskiego latem, 4:18 zimą - harmonogram GitHub
+Actions jest w UTC i nie ogarnia zmiany czasu), z dwoma ponowieniami co 20 min (03:18 / 03:38 /
+03:58 UTC). Skrypt pomija boxy, które mają już świeży snapshot, więc kolejne przebiegi ponawiają
 tylko te, które padły - np. na przejściowe 503 od przeciążonego Gemini (dodatkowo każdy box ma
 jeszcze szybki retry w obrębie jednej próby). Ręczne "Run workflow" wymusza pełne odświeżenie.
 Wymaga sekretów repo (Settings -> Secrets and variables -> Actions): `GEMINI_API_KEY`,
