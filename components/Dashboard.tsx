@@ -129,7 +129,7 @@ export default function Dashboard({ username }: { username: string }) {
 
   return (
     <main className="container">
-      <h1 className="sr-only">newsy.live — tablica tematów</h1>
+      <h1 className="sr-only">newsy.live - tablica tematów</h1>
       <header className="app-header">
         <div className="brand">
           <span className="brand-logo">

@@ -1,5 +1,5 @@
 /**
- * Codzienne odświeżanie newsów — uruchamiane przez GitHub Actions (scheduled workflow),
+ * Codzienne odświeżanie newsów - uruchamiane przez GitHub Actions (scheduled workflow),
  * NIE przez Vercel. Runner GitHuba nie ma limitu 60 s, więc cała pętla po boxach
  * mieści się spokojnie (w przeciwieństwie do funkcji serverless na planie Hobby).
  *
@@ -10,7 +10,7 @@
  * są gotowe, kolejny przebieg kończy się natychmiast.
  *
  * Ręczne uruchomienie (workflow_dispatch) ustawia FORCE_REFRESH=true i odświeża wszystko
- * niezależnie od świeżości — wygodne do testów.
+ * niezależnie od świeżości - wygodne do testów.
  *
  * Uruchomienie lokalne:
  *   npx tsx --env-file=.env.local scripts/refresh.ts
@@ -24,7 +24,7 @@ const FRESH_WINDOW_MS = 3 * 60 * 60 * 1000;
 
 // Szybki retry w obrębie jednej próby dla PRZEJŚCIOWYCH błędów Gemini (503/overload).
 // To krótkie przeciążenia po stronie Google, więc zwykle wystarczy ponowić po kilkunastu
-// sekundach — dzięki temu często wszystkie boxy przechodzą już w pierwszym przebiegu o 9:00,
+// sekundach - dzięki temu często wszystkie boxy przechodzą już w pierwszym przebiegu o 9:00,
 // a mechanizm „co 20 min" zostaje jako zabezpieczenie na dłuższe awarie.
 const RETRY_DELAYS_MS = [15_000, 15_000]; // 2 ponowienia => max 3 próby na box
 
@@ -45,7 +45,7 @@ async function refreshWithRetry(topic: string): Promise<Bullet[]> {
     try {
       return await refreshTopic(topic);
     } catch (err) {
-      // Limitu (429) ani błędów merytorycznych nie ponawiamy — tylko przejściowe przeciążenia.
+      // Limitu (429) ani błędów merytorycznych nie ponawiamy - tylko przejściowe przeciążenia.
       if (err instanceof RateLimitError || !isTransientError(err) || attempt >= RETRY_DELAYS_MS.length) {
         throw err;
       }
@@ -69,7 +69,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Zbiór boxów, które mają już świeży snapshot — pomijamy je (chyba że FORCE_REFRESH).
+  // Zbiór boxów, które mają już świeży snapshot - pomijamy je (chyba że FORCE_REFRESH).
   const freshBoxIds = new Set<string>();
   if (!force) {
     const cutoff = new Date(Date.now() - FRESH_WINDOW_MS).toISOString();
@@ -88,7 +88,7 @@ async function main() {
   const toRefresh = (boxes ?? []).filter((box) => !freshBoxIds.has(box.id));
   console.log(
     `Start odświeżania: ${total} boxów, do zrobienia ${toRefresh.length}` +
-      (force ? ' (FORCE — pełne odświeżenie).' : `, świeżych pominiętych ${total - toRefresh.length}.`),
+      (force ? ' (FORCE - pełne odświeżenie).' : `, świeżych pominiętych ${total - toRefresh.length}.`),
   );
 
   let refreshed = 0;
@@ -103,21 +103,21 @@ async function main() {
 
       if (insertError) {
         failures.push({ boxId: box.id, topic: box.topic, error: insertError.message });
-        console.error(`✗ "${box.topic}" — zapis do bazy nieudany: ${insertError.message}`);
+        console.error(`✗ "${box.topic}" - zapis do bazy nieudany: ${insertError.message}`);
       } else {
         refreshed++;
-        console.log(`✓ "${box.topic}" — ${bullets.length} newsów`);
+        console.log(`✓ "${box.topic}" - ${bullets.length} newsów`);
       }
     } catch (err) {
       if (err instanceof RateLimitError) {
-        // Wyczerpany dzienny limit Gemini — dalsze boxy i tak dostaną 429, więc przerywamy.
-        failures.push({ boxId: box.id, topic: box.topic, error: 'rate limit — przerwano' });
-        console.error(`✗ "${box.topic}" — limit Gemini wyczerpany, przerywam resztę.`);
+        // Wyczerpany dzienny limit Gemini - dalsze boxy i tak dostaną 429, więc przerywamy.
+        failures.push({ boxId: box.id, topic: box.topic, error: 'rate limit - przerwano' });
+        console.error(`✗ "${box.topic}" - limit Gemini wyczerpany, przerywam resztę.`);
         break;
       }
       const message = err instanceof Error ? err.message : String(err);
       failures.push({ boxId: box.id, topic: box.topic, error: message });
-      console.error(`✗ "${box.topic}" — ${message}`);
+      console.error(`✗ "${box.topic}" - ${message}`);
     }
   }
 
@@ -126,7 +126,7 @@ async function main() {
   );
 
   // Niezerowy kod wyjścia = czerwony status w GitHub Actions. Padnięcia oznaczamy jako błąd,
-  // żeby rzucały się w oczy — kolejny przebieg (za 20 min) ponowi tylko te boxy.
+  // żeby rzucały się w oczy - kolejny przebieg (za 20 min) ponowi tylko te boxy.
   if (failures.length > 0) process.exit(1);
 }
 

@@ -41,9 +41,9 @@ create policy "snapshots_delete_own" on public.snapshots
     exists (select 1 from public.boxes b where b.id = box_id and b.user_id = auth.uid())
   );
 
--- ── Rate limiting: max N odświeżeń na IP dziennie (endpoint /api/refresh) ─────────────
+-- Rate limiting: max N odświeżeń na IP dziennie (endpoint /api/refresh)
 -- Licznik trzymamy w bazie, bo funkcje serverless na Vercelu są bezstanowe (Map w pamięci
--- by nie działał między instancjami). Dzień liczymy w UTC — reset o północy UTC.
+-- by nie działał między instancjami). Dzień liczymy w UTC - reset o północy UTC.
 create table if not exists public.rate_limits (
   ip    text not null,
   day   date not null default (now() at time zone 'utc')::date,
@@ -55,7 +55,7 @@ create table if not exists public.rate_limits (
 alter table public.rate_limits enable row level security;
 
 -- Atomowo zwiększa licznik dla IP i mówi, czy żądanie mieści się w limicie.
--- Gdy limit osiągnięty, NIE zwiększa dalej (WHERE przy ON CONFLICT) — count nie puchnie od spamu.
+-- Gdy limit osiągnięty, NIE zwiększa dalej (WHERE przy ON CONFLICT) - count nie puchnie od spamu.
 create or replace function public.consume_rate_limit(p_ip text, p_limit int)
 returns table (allowed boolean, current_count int)
 language plpgsql
@@ -73,7 +73,7 @@ begin
   returning count into v_count;
 
   if v_count is null then
-    -- ON CONFLICT nie zaktualizował (limit osiągnięty) — zwróć aktualny stan jako zablokowany.
+    -- ON CONFLICT nie zaktualizował (limit osiągnięty) - zwróć aktualny stan jako zablokowany.
     select count into v_count from public.rate_limits
       where ip = p_ip and day = (now() at time zone 'utc')::date;
     return query select false, v_count;

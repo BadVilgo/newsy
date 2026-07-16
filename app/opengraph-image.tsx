@@ -1,9 +1,9 @@
 import { ImageResponse } from 'next/og';
 
 // Dynamiczny obrazek podglądu linku (LinkedIn/Slack/Twitter). Next dokleja go automatycznie
-// jako og:image i twitter:image. Tekst celowo bez polskich znaków — domyślny font next/og
+// jako og:image i twitter:image. Tekst celowo bez polskich znaków - domyślny font next/og
 // nie ma pełnego zestawu diakrytyków, a ASCII renderuje się pewnie.
-export const alt = 'newsy.live — tablica najwazniejszych newsow';
+export const alt = 'newsy.live - tablica najwazniejszych newsow';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 

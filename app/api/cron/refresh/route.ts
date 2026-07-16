@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       }
     } catch (err) {
       if (err instanceof RateLimitError) {
-        failures.push({ boxId: box.id, error: 'rate limit — przerwano' });
+        failures.push({ boxId: box.id, error: 'rate limit - przerwano' });
         break;
       }
       failures.push({ boxId: box.id, error: err instanceof Error ? err.message : String(err) });

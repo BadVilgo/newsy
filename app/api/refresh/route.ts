@@ -21,14 +21,14 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Niezalogowany.' }, { status: 401 });
 
-  // Limit dzienny na IP — atomowo w bazie (funkcja consume_rate_limit z schema.sql).
+  // Limit dzienny na IP - atomowo w bazie (funkcja consume_rate_limit z schema.sql).
   const ip = getClientIp(request);
   const { data: rl, error: rlError } = await supabase.rpc('consume_rate_limit', {
     p_ip: ip,
     p_limit: DAILY_LIMIT_PER_IP,
   });
   if (rlError) {
-    // Fail-open: gdy sam licznik się wywali, nie blokujemy usera — logujemy i przepuszczamy.
+    // Fail-open: gdy sam licznik się wywali, nie blokujemy usera - logujemy i przepuszczamy.
     console.error('Rate limit RPC error:', rlError.message);
   } else {
     const row = Array.isArray(rl) ? rl[0] : rl;

@@ -1,14 +1,14 @@
 name: Daily refresh
 
 # Codzienne odświeżanie newsów. Robota dzieje się TU (na runnerze GitHuba),
-# nie na Vercelu — dzięki temu nie obowiązuje limit 60 s funkcji serverless.
+# nie na Vercelu - dzięki temu nie obowiązuje limit 60 s funkcji serverless.
 on:
   schedule:
     # 3 próby co 20 min (03:18 / 03:38 / 03:58 UTC). Skrypt pomija boxy już świeże,
     # więc kolejne przebiegi ponawiają tylko te, które padły (np. na 503 od Gemini).
     # UWAGA: GitHub Actions używa strefy UTC i nie ogarnia czasu letniego/zimowego.
     # 03:18 UTC = 05:18 PL latem (CEST), 04:18 PL zimą (CET).
-    # Minuta :18 (nie :00) celowo — omija tłok schedulera GitHuba na pełnej godzinie.
+    # Minuta :18 (nie :00) celowo - omija tłok schedulera GitHuba na pełnej godzinie.
     - cron: '18,38,58 3 * * *'
   workflow_dispatch: {} # przycisk "Run workflow" do ręcznego odpalenia/testów (wymusza pełne odświeżenie)
 

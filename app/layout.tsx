@@ -3,12 +3,12 @@ import './globals.css';
 
 const SITE_URL = 'https://newsy-nine.vercel.app';
 const DESCRIPTION =
-  'Dashboard, który dla wybranych tematów zbiera przez AI najważniejsze wiadomości z ostatnich 24 i 48 godzin — z linkami do źródeł, odświeżane codziennie rano.';
+  'Dashboard, który dla wybranych tematów zbiera przez AI najważniejsze wiadomości z ostatnich 24 i 48 godzin - z linkami do źródeł, odświeżane codziennie rano.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'newsy.live — tablica najważniejszych newsów',
+    default: 'newsy.live - tablica najważniejszych newsów',
     template: '%s · newsy.live',
   },
   description: DESCRIPTION,
@@ -20,12 +20,12 @@ export const metadata: Metadata = {
     locale: 'pl_PL',
     url: SITE_URL,
     siteName: 'newsy.live',
-    title: 'newsy.live — tablica najważniejszych newsów',
+    title: 'newsy.live - tablica najważniejszych newsów',
     description: DESCRIPTION,
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'newsy.live — tablica najważniejszych newsów',
+    title: 'newsy.live - tablica najważniejszych newsów',
     description: DESCRIPTION,
   },
   robots: { index: true, follow: true },
