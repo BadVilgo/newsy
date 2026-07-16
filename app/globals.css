@@ -6,7 +6,7 @@
   --border-2: #2c374b;
   --text: #e6e9f0;
   --text-dim: #9aa3b8;
-  --text-muted: #5f6a80;
+  --text-muted: #7a8399;
   --accent: #3fb6a8;
   --accent-blue: #1f6feb;
   --link: #5aa9f0;
@@ -33,6 +33,45 @@ a {
 button {
   cursor: pointer;
   font: inherit;
+}
+
+/* Widoczny focus dla nawigacji klawiaturą (tylko przy focusie z klawiatury, nie myszą). */
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Treść tylko dla czytników ekranu (np. nagłówek h1 strony). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Szanuj preferencję ograniczenia animacji. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .container {

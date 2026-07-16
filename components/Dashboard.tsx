@@ -129,6 +129,7 @@ export default function Dashboard({ username }: { username: string }) {
 
   return (
     <main className="container">
+      <h1 className="sr-only">newsy.live — tablica tematów</h1>
       <header className="app-header">
         <div className="brand">
           <span className="brand-logo">
@@ -152,7 +153,7 @@ export default function Dashboard({ username }: { username: string }) {
 
       <AddBox onAdd={addBox} />
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
 
       {loading && <Skeleton count={3} />}
 
@@ -187,7 +188,7 @@ export default function Dashboard({ username }: { username: string }) {
 
           <div className="footer-note">
             <span className="pulse-dot" />
-            auto-odświeżanie codziennie o 09:00
+            auto-odświeżanie codziennie rano
           </div>
         </>
       )}

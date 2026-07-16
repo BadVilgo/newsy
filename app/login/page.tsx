@@ -74,6 +74,7 @@ export default function LoginPage() {
             className="input"
             type="text"
             placeholder="login"
+            aria-label="Login"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             pattern={USERNAME_PATTERN}
@@ -86,6 +87,7 @@ export default function LoginPage() {
               className="input"
               type={showPassword ? 'text' : 'password'}
               placeholder="hasło"
+              aria-label="Hasło"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
@@ -106,7 +108,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {message && <p className="error" style={{ marginTop: 12 }}>{message}</p>}
+        {message && <p className="error" role="alert" style={{ marginTop: 12 }}>{message}</p>}
 
         <button
           type="button"

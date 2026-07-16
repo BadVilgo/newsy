@@ -75,6 +75,7 @@ export default function BoxCard({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
             style={{ padding: '4px 8px' }}
+            aria-label="Edytuj temat boxa"
             autoFocus
           />
         ) : (
@@ -87,7 +88,7 @@ export default function BoxCard({
             >
               <GripIcon />
             </button>
-            <h3 className="card-title">{box.topic}</h3>
+            <h2 className="card-title">{box.topic}</h2>
           </div>
         )}
         <div className="card-actions">
@@ -142,20 +143,26 @@ export default function BoxCard({
       )}
 
       {error && (
-        <div className={`banner ${isRateLimit ? 'banner-warning' : 'banner-error'}`}>
+        <div className={`banner ${isRateLimit ? 'banner-warning' : 'banner-error'}`} role="alert">
           <AlertIcon />
           <span>{isRateLimit ? 'Wyczerpano dzienny darmowy limit Gemini. Spróbuj ponownie jutro.' : error}</span>
         </div>
       )}
 
-      <div className="tabs">
+      <div className="tabs" role="tablist" aria-label="Zakres czasu">
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'recent'}
           className={`tab${activeTab === 'recent' ? ' tab-active' : ''}`}
           onClick={() => setActiveTab('recent')}
         >
           Ostatnie 24h
         </button>
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'previous'}
           className={`tab${activeTab === 'previous' ? ' tab-active' : ''}`}
           onClick={() => setActiveTab('previous')}
         >
@@ -163,7 +170,9 @@ export default function BoxCard({
         </button>
       </div>
 
-      <NewsSection snapshot={activeTab === 'recent' ? recent : previous} />
+      <div role="tabpanel" aria-label={activeTab === 'recent' ? 'Ostatnie 24h' : 'Dzień wcześniej'}>
+        <NewsSection snapshot={activeTab === 'recent' ? recent : previous} />
+      </div>
     </div>
   );
 }

@@ -48,5 +48,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/cron).*)'],
+  // Wyklucz zasoby publiczne/SEO — inaczej middleware przekierowałby je na /login dla
+  // niezalogowanych (crawler po og:image/robots/sitemap i favicona dla wylogowanych).
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|icon.svg|opengraph-image|robots.txt|sitemap.xml|api/cron).*)',
+  ],
 };
