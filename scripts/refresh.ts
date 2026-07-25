@@ -17,6 +17,16 @@
  */
 import { createAdminClient } from '../lib/supabase/admin';
 import { refreshTopic, RateLimitError, type Bullet } from '../lib/gemini';
+import { fetchRssBullets } from '../lib/rssEngine';
+
+// Obie wersje newsow odswiezamy na tych samych boxach: 'search' = Newsy (Gemini + grounding),
+// 'rss' = Newsy 2 (silnik w Pythonie). Kazda ma osobny snapshot (kolumna method).
+type Method = 'search' | 'rss';
+const METHODS: Method[] = ['search', 'rss'];
+
+function refreshByMethod(topic: string, method: Method): Promise<Bullet[]> {
+  return method === 'rss' ? fetchRssBullets(topic) : refreshTopic(topic);
+}
 
 // Box uznajemy za „świeży" (do pominięcia), jeśli ma snapshot z ostatnich 3 godzin.
 // Okno musi być wyraźnie większe niż rozjazd prób (40 min), a wyraźnie mniejsze niż doba.
@@ -40,10 +50,10 @@ function isTransientError(err: unknown): boolean {
   );
 }
 
-async function refreshWithRetry(topic: string): Promise<Bullet[]> {
+async function refreshWithRetry(topic: string, method: Method): Promise<Bullet[]> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await refreshTopic(topic);
+      return await refreshByMethod(topic, method);
     } catch (err) {
       // Limitu (429) ani błędów merytorycznych nie ponawiamy - tylko przejściowe przeciążenia.
       if (err instanceof RateLimitError || !isTransientError(err) || attempt >= RETRY_DELAYS_MS.length) {
@@ -51,7 +61,7 @@ async function refreshWithRetry(topic: string): Promise<Bullet[]> {
       }
       const delay = RETRY_DELAYS_MS[attempt];
       console.log(
-        `  … przeciążenie Gemini (503) dla "${topic}", ponawiam za ${delay / 1000}s ` +
+        `  … przeciążenie Gemini (503) dla "${topic}" [${method}], ponawiam za ${delay / 1000}s ` +
           `(próba ${attempt + 2}/${RETRY_DELAYS_MS.length + 1})`,
       );
       await sleep(delay);
@@ -69,60 +79,63 @@ async function main() {
     process.exit(1);
   }
 
-  // Zbiór boxów, które mają już świeży snapshot - pomijamy je (chyba że FORCE_REFRESH).
-  const freshBoxIds = new Set<string>();
+  // Zbiór par "box:metoda", które mają już świeży snapshot - pomijamy je (chyba że FORCE_REFRESH).
+  const freshKeys = new Set<string>();
   if (!force) {
     const cutoff = new Date(Date.now() - FRESH_WINDOW_MS).toISOString();
     const { data: recent, error: recentError } = await supabase
       .from('snapshots')
-      .select('box_id')
+      .select('box_id, method')
       .gte('fetched_at', cutoff);
     if (recentError) {
       console.error('Nie udało się sprawdzić świeżości snapshotów:', recentError.message);
       process.exit(1);
     }
-    for (const row of recent ?? []) freshBoxIds.add(row.box_id);
+    for (const row of recent ?? []) freshKeys.add(`${row.box_id}:${row.method ?? 'search'}`);
   }
 
-  const total = boxes?.length ?? 0;
-  const toRefresh = (boxes ?? []).filter((box) => !freshBoxIds.has(box.id));
+  // Zadania = kazdy box x kazda metoda, pomijajac te juz swieze.
+  const jobs = (boxes ?? []).flatMap((box) =>
+    METHODS.filter((method) => !freshKeys.has(`${box.id}:${method}`)).map((method) => ({ box, method })),
+  );
+  const totalJobs = (boxes?.length ?? 0) * METHODS.length;
   console.log(
-    `Start odświeżania: ${total} boxów, do zrobienia ${toRefresh.length}` +
-      (force ? ' (FORCE - pełne odświeżenie).' : `, świeżych pominiętych ${total - toRefresh.length}.`),
+    `Start odświeżania: ${boxes?.length ?? 0} boxów × ${METHODS.length} metody = ${totalJobs}, do zrobienia ${jobs.length}` +
+      (force ? ' (FORCE - pełne odświeżenie).' : `, świeżych pominiętych ${totalJobs - jobs.length}.`),
   );
 
   let refreshed = 0;
-  const failures: { boxId: string; topic: string; error: string }[] = [];
+  const failures: { boxId: string; topic: string; method: Method; error: string }[] = [];
 
-  for (const box of toRefresh) {
+  for (const { box, method } of jobs) {
     try {
-      const bullets = await refreshWithRetry(box.topic);
+      const bullets = await refreshWithRetry(box.topic, method);
       const { error: insertError } = await supabase
         .from('snapshots')
-        .insert({ box_id: box.id, items: bullets });
+        .insert({ box_id: box.id, items: bullets, method });
 
       if (insertError) {
-        failures.push({ boxId: box.id, topic: box.topic, error: insertError.message });
-        console.error(`✗ "${box.topic}" - zapis do bazy nieudany: ${insertError.message}`);
+        failures.push({ boxId: box.id, topic: box.topic, method, error: insertError.message });
+        console.error(`✗ "${box.topic}" [${method}] - zapis do bazy nieudany: ${insertError.message}`);
       } else {
         refreshed++;
-        console.log(`✓ "${box.topic}" - ${bullets.length} newsów`);
+        console.log(`✓ "${box.topic}" [${method}] - ${bullets.length} newsów`);
       }
     } catch (err) {
       if (err instanceof RateLimitError) {
-        // Wyczerpany dzienny limit Gemini - dalsze boxy i tak dostaną 429, więc przerywamy.
-        failures.push({ boxId: box.id, topic: box.topic, error: 'rate limit - przerwano' });
-        console.error(`✗ "${box.topic}" - limit Gemini wyczerpany, przerywam resztę.`);
+        // Wyczerpany dzienny limit Gemini - dalsze zadania i tak dostaną 429, więc przerywamy.
+        failures.push({ boxId: box.id, topic: box.topic, method, error: 'rate limit - przerwano' });
+        console.error(`✗ "${box.topic}" [${method}] - limit Gemini wyczerpany, przerywam resztę.`);
         break;
       }
       const message = err instanceof Error ? err.message : String(err);
-      failures.push({ boxId: box.id, topic: box.topic, error: message });
-      console.error(`✗ "${box.topic}" - ${message}`);
+      failures.push({ boxId: box.id, topic: box.topic, method, error: message });
+      console.error(`✗ "${box.topic}" [${method}] - ${message}`);
     }
   }
 
   console.log(
-    `\nPodsumowanie: odświeżono ${refreshed}/${toRefresh.length} próbowanych, błędów: ${failures.length}.`,
+    `\nPodsumowanie: odświeżono ${refreshed}/${jobs.length} próbowanych, błędów: ${failures.length}.`,
   );
 
   // Niezerowy kod wyjścia = czerwony status w GitHub Actions. Padnięcia oznaczamy jako błąd,

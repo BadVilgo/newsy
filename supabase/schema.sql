@@ -10,11 +10,23 @@ create table if not exists public.snapshots (
   id         uuid primary key default gen_random_uuid(),
   box_id     uuid not null references public.boxes (id) on delete cascade,
   fetched_at timestamptz not null default now(),
-  items      jsonb not null default '[]'::jsonb
+  items      jsonb not null default '[]'::jsonb,
+  -- Skad pochodzi snapshot: 'search' = zakladka Newsy (Gemini + Google grounding),
+  -- 'rss' = zakladka Newsy 2 (Google News RSS + Gemini, silnik w Pythonie).
+  -- Oba warianty zyja na tych samych boxach (tematach), ale maja osobne snapshoty.
+  method     text not null default 'search'
 );
+
+-- Dla istniejacej bazy (tabela juz istnieje) uruchom recznie w SQL editor Supabase:
+--   alter table public.snapshots add column if not exists method text not null default 'search';
+--   create index if not exists snapshots_box_method_fetched_idx
+--     on public.snapshots (box_id, method, fetched_at desc);
 
 create index if not exists snapshots_box_fetched_idx
   on public.snapshots (box_id, fetched_at desc);
+
+create index if not exists snapshots_box_method_fetched_idx
+  on public.snapshots (box_id, method, fetched_at desc);
 
 alter table public.boxes     enable row level security;
 alter table public.snapshots enable row level security;

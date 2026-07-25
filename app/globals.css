@@ -644,3 +644,267 @@ button:focus-visible,
 .grid-item.dragging {
   opacity: 0.4;
 }
+
+/* ===== Menu / nawigacja ===== */
+.app-header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.brand-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nav-link {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 13px;
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.nav-link:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.nav-link-active {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-2);
+}
+
+.page-note {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+}
+
+/* ===== Wspolne przyciski ===== */
+.btn-lg {
+  padding: 11px 20px;
+  font-size: 14px;
+  border-radius: 10px;
+  text-decoration: none;
+  display: inline-block;
+}
+
+/* ===== Landing (Home) ===== */
+.hero {
+  text-align: center;
+  padding: 40px 0 34px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 34px;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  padding: 5px 12px;
+  margin-bottom: 20px;
+}
+
+.hero-title {
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.15;
+  font-weight: 600;
+  margin: 0 0 18px;
+  letter-spacing: -0.5px;
+}
+
+.hero-title .accent {
+  color: var(--accent);
+}
+
+.hero-lead {
+  max-width: 620px;
+  margin: 0 auto 26px;
+  font-size: 16px;
+  color: var(--text-dim);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.feature-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.feature-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+/* ===== Strony tekstowe (O aplikacji / Kontakt) ===== */
+.prose {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px 0 20px;
+}
+
+.prose-narrow {
+  max-width: 560px;
+}
+
+.prose-title {
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  margin: 14px 0 16px;
+}
+
+.prose-lead {
+  font-size: 16px;
+  color: var(--text-dim);
+  margin: 0 0 28px;
+}
+
+.prose-h2 {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 30px 0 12px;
+}
+
+.prose-text {
+  font-size: 15px;
+  color: var(--text-dim);
+  margin: 0 0 16px;
+}
+
+.prose-list {
+  padding-left: 20px;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.prose-list li {
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.prose-list strong,
+.prose-text strong,
+.prose-lead strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.prose-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.prose-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.step-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+}
+
+/* ===== Karta kontaktu ===== */
+.contact-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 8px 0 24px;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+  transition: background 0.15s;
+}
+
+.contact-row + .contact-row {
+  border-top: 1px solid var(--border);
+}
+
+.contact-row:hover {
+  background: var(--surface-2);
+}
+
+.contact-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+}
+
+.contact-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--link);
+  word-break: break-all;
+}

@@ -1,16 +1,22 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Niezalogowany.' }, { status: 401 });
 
+  // Ktora wersja newsow: 'search' (Newsy) lub 'rss' (Newsy 2). Boxy (tematy) sa wspolne,
+  // ale snapshoty filtrujemy po metodzie - kazda zakladka widzi swoje wyniki.
+  const methodParam = new URL(request.url).searchParams.get('method');
+  const method = methodParam === 'rss' ? 'rss' : 'search';
+
   const { data: boxes, error } = await supabase
     .from('boxes')
-    .select('id, topic, position, created_at, snapshots(id, fetched_at, items)')
+    .select('id, topic, position, created_at, snapshots(id, fetched_at, items, method)')
+    .eq('snapshots.method', method)
     .order('position', { ascending: true })
     .order('fetched_at', { referencedTable: 'snapshots', ascending: false })
     .limit(2, { referencedTable: 'snapshots' });

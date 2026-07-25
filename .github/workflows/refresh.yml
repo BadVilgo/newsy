@@ -37,5 +37,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Adres silnika RSS (Python/FastAPI na Vercelu), np. https://<deploy>.vercel.app/api/rss.
+          # Na runnerze GitHuba nie ma VERCEL_URL, więc metodę 'rss' kierujemy tutaj.
+          RSS_ENGINE_URL: ${{ secrets.RSS_ENGINE_URL }}
           # Ręczne uruchomienie odświeża wszystko; harmonogram tylko boxy nieświeże.
           FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' }}

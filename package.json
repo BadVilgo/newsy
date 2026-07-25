@@ -16,6 +16,7 @@
     "@google/genai": "^0.15.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
+    "fast-xml-parser": "^5.10.1",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
