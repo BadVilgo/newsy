@@ -12,6 +12,11 @@ export default function BulletItem({ bullet }: { bullet: Bullet }) {
       <span className="bullet-marker">▹</span>
       <div>
         {bullet.text}
+        {bullet.foreign && (
+          <span className="foreign-badge" title="Źródło zagraniczne (Google News US)">
+            US
+          </span>
+        )}
         {bullet.sources.length > 0 && (
           <div>
             <button className="source-toggle" onClick={() => setShowSources((s) => !s)}>

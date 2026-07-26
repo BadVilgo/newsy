@@ -3,8 +3,9 @@ Silnik "Newsy 2" - mikroserwis w Pythonie (FastAPI), uruchamiany jako funkcja
 serverless na Vercelu (plik w /api => endpoint POST /api/rss).
 
 Rola: cała logika RSS + AI dla drugiej zakladki newsow.
-  1. pobiera Google News RSS dla zadanego tematu (feedparser), ograniczajac zakres
-     operatorem when: (1-2 dni) i TWARDO odrzucajac wszystko starsze niz 48h po dacie pubDate,
+  1. pobiera Google News RSS dla zadanego tematu (feedparser) - najpierw PL, a gdy PL ma
+     za malo swiezych pozycji, dobiera US (wieksza baza) i laczy obie pule; ograniczajac
+     zakres operatorem when: (1-2 dni) i TWARDO odrzucajac wszystko starsze niz 48h po pubDate,
   2. sortuje po dacie (najnowsze) i bierze do 20 pozycji (naglowek + opis + zrodlo + link + data),
   3. Gemini (google-genai) wybiera 4 najwazniejsze i pisze do kazdej WLASNY,
      krotki opis po polsku na bazie naglowka i opisu,
@@ -48,6 +49,13 @@ MIN_ITEMS = 8
 GEMINI_MODEL = "gemini-2.5-flash"
 # feedparser bez naglowka User-Agent bywa odrzucany - podszywamy sie pod przegladarke.
 USER_AGENT = "Mozilla/5.0 (compatible; newsy.live/1.0; +https://newsy-nine.vercel.app)"
+# Parametry lokalizacji Google News. Zaczynamy od PL; gdy PL ma za malo swiezych newsow
+# (typowo tematy niszowe/globalne), dobieramy US - tam baza jest wieksza i swiezsza.
+# Gemini i tak pisze opisy po polsku, wiec zagraniczne pozycje sa "tlumaczone" u zrodla.
+REGIONS = {
+    "pl": "hl=pl&gl=PL&ceid=PL:pl",
+    "us": "hl=en-US&gl=US&ceid=US:en",
+}
 
 app = FastAPI(title="newsy RSS engine")
 
@@ -103,12 +111,13 @@ def entry_timestamp(entry) -> float | None:
         return None
 
 
-def parse_feed(topic: str, window: str) -> list[dict]:
+def parse_feed(topic: str, window: str, region: str) -> list[dict]:
     query = f"{topic} {window}".strip()
     url = (
         "https://news.google.com/rss/search?q="
         + quote_plus(query)
-        + "&hl=pl&gl=PL&ceid=PL:pl"
+        + "&"
+        + REGIONS[region]
     )
     feed = feedparser.parse(url, agent=USER_AGENT)
     items: list[dict] = []
@@ -131,24 +140,34 @@ def parse_feed(topic: str, window: str) -> list[dict]:
                 "url": getattr(entry, "link", "") or "",
                 "ts": ts,
                 "published": published,
+                "region": region,
             }
         )
     return items
 
 
-def fetch_rss_items(topic: str) -> list[dict]:
-    """Zbiera pozycje z Google News, poszerzajac okno czasowe az do MIN_ITEMS, po czym
-    TWARDO odrzuca wszystko starsze niz MAX_AGE_HOURS, sortuje od najnowszych i przycina.
-    Wpisy bez daty publikacji tez odrzucamy - nie da sie potwierdzic, ze mieszcza sie w 48h."""
+def collect_fresh(topic: str, region: str) -> list[dict]:
+    """Pozycje z jednego regionu: poszerza okno do MIN_ITEMS, po czym TWARDO odrzuca
+    wszystko starsze niz MAX_AGE_HOURS (oraz wpisy bez daty - nie da sie potwierdzic wieku)."""
     items: list[dict] = []
     for window in SEARCH_WINDOWS:
-        items = parse_feed(topic, window)
+        items = parse_feed(topic, window, region)
         if len(items) >= MIN_ITEMS:
             break
     cutoff = time.time() - MAX_AGE_HOURS * 3600
-    fresh = [it for it in items if it["ts"] is not None and it["ts"] >= cutoff]
-    fresh.sort(key=lambda it: it["ts"], reverse=True)
-    return fresh[:RSS_ITEMS]
+    return [it for it in items if it["ts"] is not None and it["ts"] >= cutoff]
+
+
+def fetch_rss_items(topic: str) -> list[dict]:
+    """Najpierw PL. Gdy PL ma mniej niz SELECT_COUNT swiezych pozycji (typowo tematy
+    niszowe/globalne), dobiera US i LACZY obie pule (PL zostaje, US uzupelnia). Na koniec
+    sortuje od najnowszych i przycina do RSS_ITEMS."""
+    combined = collect_fresh(topic, "pl")
+    if len(combined) < SELECT_COUNT:
+        seen = {it["url"] for it in combined}
+        combined = combined + [it for it in collect_fresh(topic, "us") if it["url"] not in seen]
+    combined.sort(key=lambda it: it["ts"], reverse=True)
+    return combined[:RSS_ITEMS]
 
 
 def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
@@ -172,7 +191,8 @@ def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
         "Jesli kilka pozycji opisuje to samo wydarzenie, wybierz tylko jedna. Przy podobnej "
         "wadze preferuj pozycje SWIEZSZE (nowsza data).\n"
         "2. Do kazdej wybranej pozycji napisz WLASNY, zwiezly opis po polsku (jedno pelne "
-        "zdanie), oparty na naglowku i opisie - nie kopiuj naglowka doslownie.\n\n"
+        "zdanie), oparty na naglowku i opisie - nie kopiuj naglowka doslownie. Pozycje moga "
+        "byc po polsku lub angielsku, ale opis ZAWSZE pisz po polsku.\n\n"
         "Zwroc WYLACZNIE poprawny JSON: tablice obiektow "
         '[{"index": <numer z listy>, "summary": "<Twoj opis>"}], '
         f"dokladnie {count} elementow, od najwazniejszego do najmniej waznego, "
@@ -209,6 +229,8 @@ def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
             {
                 "text": summary,
                 "sources": [{"title": source_title, "url": item["url"]}] if item["url"] else [],
+                # Znacznik dla UI: pozycja pochodzi z zagranicznego (nie-PL) wydania Google News.
+                "foreign": item["region"] != "pl",
             }
         )
 

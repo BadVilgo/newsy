@@ -1,7 +1,9 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
 export type Source = { title: string; url: string };
-export type Bullet = { text: string; sources: Source[] };
+// `foreign` = pozycja z zagranicznego (nie-PL) wydania Google News; ustawia je silnik RSS
+// (Newsy 2) przy fallbacku na US. Sciezka `search` (Newsy 1) tego pola nie ustawia.
+export type Bullet = { text: string; sources: Source[]; foreign?: boolean };
 
 export type NumberedItem = {
   number: number;
