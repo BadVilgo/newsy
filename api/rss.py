@@ -23,7 +23,7 @@ import re
 from urllib.parse import quote_plus
 
 import feedparser
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from google import genai
 from pydantic import BaseModel
 
@@ -52,6 +52,15 @@ def get_client() -> genai.Client:
 
 class RssRequest(BaseModel):
     topic: str
+
+
+def check_secret(provided: str | None) -> None:
+    """Opcjonalna ochrona: gdy ustawiono RSS_ENGINE_SECRET, wymagaj naglowka x-engine-secret.
+    Bez zmiennej endpoint dziala bez sekretu (wygodne na start; Gemini jest platny, wiec
+    warto ustawic sekret po obu stronach: tu i w RSS_ENGINE_SECRET dla Next/GitHub Actions)."""
+    expected = os.environ.get("RSS_ENGINE_SECRET")
+    if expected and provided != expected:
+        raise HTTPException(status_code=401, detail="Brak lub niepoprawny sekret silnika.")
 
 
 def strip_html(text: str) -> str:
@@ -169,7 +178,8 @@ def run(topic: str) -> list[dict]:
 # zeby dzialalo niezaleznie od tego, czy trafi tu '/api/rss' czy '/'.
 @app.post("/api/rss")
 @app.post("/")
-def rss(req: RssRequest):
+def rss(req: RssRequest, x_engine_secret: str | None = Header(default=None)):
+    check_secret(x_engine_secret)
     return {"bullets": run(req.topic)}
 
 

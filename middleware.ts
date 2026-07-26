@@ -50,7 +50,9 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // Wyklucz zasoby publiczne/SEO - inaczej middleware przekierowałby je na /login dla
   // niezalogowanych (crawler po og:image/robots/sitemap i favicona dla wylogowanych).
+  // api/rss = silnik Pythona wołany server-to-server z /api/refresh (bez ciasteczek), więc
+  // musi być poza middleware, inaczej dostaje 307 -> /login zamiast liczyć newsy.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icon.svg|opengraph-image|robots.txt|sitemap.xml|api/cron).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icon.svg|opengraph-image|robots.txt|sitemap.xml|api/cron|api/rss).*)',
   ],
 };
