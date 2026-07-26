@@ -908,3 +908,72 @@ button:focus-visible,
   color: var(--link);
   word-break: break-all;
 }
+
+/* ===== Hamburger menu (mobilka) ===== */
+/* Desktop: przycisk ukryty, a kontener "rozpuszcza sie" (display:contents), zeby
+   .main-nav i .user-area byly bezposrednimi elementami flex naglowka jak dotad. */
+.nav-toggle {
+  display: none;
+}
+
+.nav-collapse {
+  display: contents;
+}
+
+@media (max-width: 640px) {
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-left: auto;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid var(--border-2);
+    border-radius: 9px;
+  }
+
+  .nav-toggle:hover {
+    background: var(--surface);
+  }
+
+  /* Na mobilce kontener jest normalnym blokiem: ukryty, a po otwarciu - rozwijany panel
+     na pelna szerokosc pod naglowkiem. */
+  .nav-collapse {
+    display: none;
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .nav-collapse.open {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav-collapse.open .main-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .nav-collapse.open .nav-link {
+    padding: 11px 12px;
+    font-size: 14px;
+  }
+
+  .nav-collapse.open .user-area {
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* W rozwinietym menu pokazujemy nazwe uzytkownika (domyslnie na mobilce ukryta). */
+  .nav-collapse.open .user-name {
+    display: inline;
+  }
+}
