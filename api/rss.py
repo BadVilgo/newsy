@@ -3,8 +3,8 @@ Silnik "Newsy 2" - mikroserwis w Pythonie (FastAPI), uruchamiany jako funkcja
 serverless na Vercelu (plik w /api => endpoint POST /api/rss).
 
 Rola: cała logika RSS + AI dla drugiej zakladki newsow.
-  1. pobiera Google News RSS dla zadanego tematu (feedparser), ograniczajac do ostatniej
-     doby (operator when:1d; dla niszowych tematow okno poszerza sie automatycznie),
+  1. pobiera Google News RSS dla zadanego tematu (feedparser), ograniczajac zakres
+     operatorem when: (1-2 dni) i TWARDO odrzucajac wszystko starsze niz 48h po dacie pubDate,
   2. sortuje po dacie (najnowsze) i bierze do 20 pozycji (naglowek + opis + zrodlo + link + data),
   3. Gemini (google-genai) wybiera 4 najwazniejsze i pisze do kazdej WLASNY,
      krotki opis po polsku na bazie naglowka i opisu,
@@ -22,6 +22,7 @@ import html
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 
@@ -34,11 +35,14 @@ from pydantic import BaseModel
 RSS_ITEMS = 20
 # Ile newsow ma finalnie wybrac Gemini (mniej, jesli temat niszowy i pozycji jest mniej).
 SELECT_COUNT = 4
+# TWARDE odciecie wieku: w Newsy 2 nie pokazujemy nic starszego niz 48h. Filtrujemy po
+# realnej dacie publikacji (pubDate), niezaleznie od tego, co zwroci operator when:.
+MAX_AGE_HOURS = 48
 # Google News sortuje wyniki wyszukiwania po TRAFNOSCI i bez limitu czasu, wiec bez tego
-# operatora do wynikow wpadaja stare artykuly. `when:1d` ogranicza do ostatniej doby.
-# Dla niszowych tematow 1 dzien bywa za waski (za malo pozycji), wiec progresywnie
-# poszerzamy okno, az uzbieramy sensowna liczbe wpisow. Pusty string = bez limitu czasu.
-SEARCH_WINDOWS = ["when:1d", "when:2d", "when:7d", ""]
+# operatora do wynikow wpadaja stare artykuly. `when:1d`/`when:2d` ograniczaja zakres.
+# Zaczynamy od 1 dnia (najswiezsze); gdy za malo pozycji, poszerzamy do 2 dni. Szerzej
+# nie idziemy - i tak twardy filtr 48h nizej odrzucilby starsze wpisy.
+SEARCH_WINDOWS = ["when:1d", "when:2d"]
 # Ile pozycji chcemy miec do sensownej selekcji - ponizej tego progu poszerzamy okno.
 MIN_ITEMS = 8
 GEMINI_MODEL = "gemini-2.5-flash"
@@ -133,16 +137,18 @@ def parse_feed(topic: str, window: str) -> list[dict]:
 
 
 def fetch_rss_items(topic: str) -> list[dict]:
-    """Zbiera pozycje z Google News, poszerzajac okno czasowe az do MIN_ITEMS,
-    a na koniec sortuje od najnowszych i przycina do RSS_ITEMS."""
+    """Zbiera pozycje z Google News, poszerzajac okno czasowe az do MIN_ITEMS, po czym
+    TWARDO odrzuca wszystko starsze niz MAX_AGE_HOURS, sortuje od najnowszych i przycina.
+    Wpisy bez daty publikacji tez odrzucamy - nie da sie potwierdzic, ze mieszcza sie w 48h."""
     items: list[dict] = []
     for window in SEARCH_WINDOWS:
         items = parse_feed(topic, window)
         if len(items) >= MIN_ITEMS:
             break
-    # Najnowsze najpierw; wpisy bez daty na koniec (traktujemy jako najstarsze).
-    items.sort(key=lambda it: it["ts"] if it["ts"] is not None else 0.0, reverse=True)
-    return items[:RSS_ITEMS]
+    cutoff = time.time() - MAX_AGE_HOURS * 3600
+    fresh = [it for it in items if it["ts"] is not None and it["ts"] >= cutoff]
+    fresh.sort(key=lambda it: it["ts"], reverse=True)
+    return fresh[:RSS_ITEMS]
 
 
 def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
@@ -217,7 +223,10 @@ def run(topic: str) -> list[dict]:
         raise HTTPException(status_code=400, detail="Podaj temat.")
     items = fetch_rss_items(trimmed)
     if not items:
-        raise HTTPException(status_code=404, detail="Brak newsow w Google News dla tego tematu.")
+        raise HTTPException(
+            status_code=404,
+            detail="Brak newsow z ostatnich 48h dla tego tematu.",
+        )
     return select_and_summarize(trimmed, items)
 
 
