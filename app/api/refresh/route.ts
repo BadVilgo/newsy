@@ -6,7 +6,7 @@ import { fetchRssBullets } from '@/lib/rssEngine';
 export const maxDuration = 60;
 
 // Maks. odświeżeń na jeden adres IP w ciągu doby (UTC). Chroni płatne Gemini przed nadużyciem.
-const DAILY_LIMIT_PER_IP = 15;
+const DAILY_LIMIT_PER_IP = 30;
 
 function getClientIp(request: Request): string {
   // Na Vercelu prawdziwe IP klienta jest w x-forwarded-for (pierwszy wpis na liście).

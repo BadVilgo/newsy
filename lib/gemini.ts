@@ -69,7 +69,7 @@ export function isRateLimitError(err: unknown): boolean {
 }
 
 export class RateLimitError extends Error {
-  constructor(message = 'Wyczerpano dzienny darmowy limit zapytań do Gemini.') {
+  constructor(message = 'Wyczerpano dzienny limit zapytań do Gemini (RPD). Spróbuj ponownie jutro.') {
     super(message);
     this.name = 'RateLimitError';
   }

@@ -145,7 +145,9 @@ export default function BoxCard({
       {error && (
         <div className={`banner ${isRateLimit ? 'banner-warning' : 'banner-error'}`} role="alert">
           <AlertIcon />
-          <span>{isRateLimit ? 'Wyczerpano dzienny darmowy limit Gemini. Spróbuj ponownie jutro.' : error}</span>
+          {/* Pokazujemy prawdziwy komunikat z serwera - odróżnia limit aplikacji (X/dobę)
+              od realnego limitu zapytań Gemini. isRateLimit steruje tylko kolorem banera. */}
+          <span>{error}</span>
         </div>
       )}
 
