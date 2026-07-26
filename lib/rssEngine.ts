@@ -12,16 +12,30 @@ import type { Bullet } from './gemini';
  */
 export function rssEngineUrl(): string {
   if (process.env.RSS_ENGINE_URL) return process.env.RSS_ENGINE_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}/api/rss`;
+  // WAZNE: uzywamy stabilnego adresu PRODUKCYJNEGO, nie VERCEL_URL.
+  // VERCEL_URL to unikatowy adres konkretnego deploya - przy wlaczonej Vercel Deployment
+  // Protection zwraca 401 "Protected deployment" na wewnetrzne wywolania server-to-server.
+  // VERCEL_PROJECT_PRODUCTION_URL (np. newsy-nine.vercel.app) nie jest tak chroniony.
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  if (host) return `https://${host}/api/rss`;
   return 'http://localhost:3000/api/rss';
 }
 
-/** FastAPI zwraca blad w polu `detail`; przy walidacji to tablica obiektow, nie string. */
-function describeDetail(detail: unknown, status: number): string {
-  if (typeof detail === 'string' && detail) return detail;
-  if (detail != null) {
+/**
+ * Wyciaga czytelny komunikat z ciala bledu.
+ * FastAPI uzywa pola `detail` (przy walidacji to TABLICA obiektow, nie string);
+ * Vercel Deployment Protection zwraca `message` (np. "Protected deployment").
+ * Bez tego surowy obiekt trafialby do new Error(...) jako bezuzyteczne "[object Object]".
+ */
+export function describeError(
+  data: { detail?: unknown; error?: unknown; message?: unknown },
+  status: number,
+): string {
+  const raw = data.detail ?? data.error ?? data.message;
+  if (typeof raw === 'string' && raw) return raw;
+  if (raw != null) {
     try {
-      return JSON.stringify(detail);
+      return JSON.stringify(raw);
     } catch {
       /* ignore */
     }
@@ -55,8 +69,12 @@ export async function fetchRssBullets(topic: string): Promise<Bullet[]> {
   }
 
   if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown };
-    throw new Error(describeDetail(data.detail ?? data.error, res.status));
+    const data = (await res.json().catch(() => ({}))) as {
+      detail?: unknown;
+      error?: unknown;
+      message?: unknown;
+    };
+    throw new Error(describeError(data, res.status));
   }
 
   const data = (await res.json().catch(() => ({}))) as { bullets?: Bullet[] };
