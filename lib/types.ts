@@ -1,19 +1,21 @@
-import type { Bullet } from './gemini';
+export type Source = { title: string; url: string };
 
-export type { Bullet, Source } from './gemini';
-
-export type NewsMethod = 'search' | 'rss';
+// `foreign` = pozycja z zagranicznego (nie-PL) wydania Google News; ustawia ja silnik RSS
+// przy dobieraniu newsow z wydania US dla tematow ubogich w polskie zrodla.
+export type Bullet = { text: string; sources: Source[]; foreign?: boolean };
 
 export type Snapshot = {
   id: string;
   fetched_at: string;
   items: Bullet[];
-  method?: NewsMethod;
 };
 
 export type Box = {
   id: string;
   topic: string;
+  // Angielskie haslo wyszukiwania - liczone raz przy dodaniu/edycji tematu i cache'owane,
+  // zeby nie placic za tlumaczenie przy kazdym odswiezeniu.
+  topic_en?: string | null;
   position: number;
   created_at: string;
   snapshots: Snapshot[];

@@ -5,10 +5,10 @@ import Dashboard from '@/components/Dashboard';
 export const metadata: Metadata = {
   title: 'Newsy - tablica tematów',
   description:
-    'Wersja 1: najważniejsze newsy wybrane przez Gemini z wyszukiwania w sieci (Google grounding).',
+    'Najważniejsze newsy z ostatnich 48h dla Twoich tematów - zbierane z Google News RSS i wybierane przez Gemini.',
   alternates: { canonical: '/newsy' },
 };
 
 export default async function NewsyPage() {
-  return <Dashboard username={await currentUsername()} method="search" />;
+  return <Dashboard username={await currentUsername()} />;
 }

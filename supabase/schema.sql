@@ -2,19 +2,25 @@ create table if not exists public.boxes (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references auth.users (id) on delete cascade,
   topic      text not null,
+  -- Angielskie haslo wyszukiwania dla wydania US Google News. Liczone RAZ (przy dodaniu
+  -- lub edycji tematu) i cache'owane, zeby nie placic za tlumaczenie przy kazdym odswiezeniu.
+  topic_en   text,
   position   int  not null default 0,
   created_at timestamptz not null default now()
 );
+
+-- Dla istniejacej bazy uruchom recznie w SQL editor Supabase:
+--   alter table public.boxes add column if not exists topic_en text;
 
 create table if not exists public.snapshots (
   id         uuid primary key default gen_random_uuid(),
   box_id     uuid not null references public.boxes (id) on delete cascade,
   fetched_at timestamptz not null default now(),
   items      jsonb not null default '[]'::jsonb,
-  -- Skad pochodzi snapshot: 'search' = zakladka Newsy (Gemini + Google grounding),
-  -- 'rss' = zakladka Newsy 2 (Google News RSS + Gemini, silnik w Pythonie).
-  -- Oba warianty zyja na tych samych boxach (tematach), ale maja osobne snapshoty.
-  method     text not null default 'search'
+  -- Skad pochodzi snapshot. Obecnie zawsze 'rss' (Google News RSS + Gemini, silnik
+  -- w Pythonie). Wartosc 'search' to historyczne wpisy z wycofanego wariantu opartego
+  -- na Google grounding - zostaja w bazie, ale aplikacja ich nie pokazuje.
+  method     text not null default 'rss'
 );
 
 -- Dla istniejacej bazy (tabela juz istnieje) uruchom recznie w SQL editor Supabase:

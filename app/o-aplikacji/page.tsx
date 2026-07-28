@@ -45,8 +45,8 @@ export default async function AboutPage() {
             artykułów, więc jednym kliknięciem czytasz więcej.
           </li>
           <li>
-            <strong>Porównać dwa silniki</strong> - ten sam temat w wersji „Newsy" i „Newsy 2",
-            żeby zobaczyć, które podejście daje lepsze wyniki.
+            <strong>Mieć pewność świeżości</strong> - nic starszego niż 48 godzin nie ma prawa
+            trafić na tablicę, a pierwszeństwo zawsze mają wiadomości z ostatniej doby.
           </li>
         </ul>
 
@@ -75,21 +75,32 @@ export default async function AboutPage() {
           </li>
         </ol>
 
-        <h2 className="prose-h2">Dwie wersje newsów</h2>
+        <h2 className="prose-h2">Gdy polskie media milczą</h2>
         <p className="prose-text">
-          To także mały eksperyment produktowy. <strong>Newsy</strong> opierają się na
-          wyszukiwaniu Gemini w sieci na żywo. <strong>Newsy 2</strong> pobierają wiadomości z
-          Google News RSS, a osobny silnik napisany w Pythonie (FastAPI) zleca Gemini wybór 4
-          najważniejszych i napisanie własnych opisów. Oba warianty działają na tych samych
-          tematach - możesz je porównać obok siebie.
+          Przy tematach niszowych bywa, że po polsku nie ma nic świeżego. Aplikacja wtedy nie
+          zostawia Cię z pustym kafelkiem: tłumaczy temat na angielskie hasło i{' '}
+          <strong>dobiera wiadomości z amerykańskiego wydania</strong> Google News, gdzie baza
+          jest znacznie większa. Polskie źródła nigdy przez to nie znikają - obie pule trafiają
+          do wyboru razem, a opisy zawsze dostajesz po polsku. Wiadomości z zagranicznych
+          serwisów są oznaczone znacznikiem, a link prowadzi do artykułu z jego oryginalnym
+          tytułem.
+        </p>
+
+        <h2 className="prose-h2">Pod maską</h2>
+        <p className="prose-text">
+          Wiadomości pochodzą z Google News RSS, a przetwarza je osobny silnik napisany w{' '}
+          <strong>Pythonie (FastAPI)</strong>: zbiera do 30 newsów na temat, odsiewa wszystko
+          starsze niż 48 godzin i jednym zapytaniem do Gemini wybiera najważniejsze pozycje oraz
+          pisze do nich własne, polskie opisy. Resztą - kontami, bazą i codziennym odświeżaniem -
+          zajmuje się aplikacja Next.js.
         </p>
 
         <div className="hero-actions">
           <Link href="/newsy" className="btn btn-primary btn-lg">
             Przejdź do Newsów
           </Link>
-          <Link href="/newsy-2" className="btn btn-lg">
-            Zobacz Newsy 2
+          <Link href="/kontakt" className="btn btn-lg">
+            Kontakt
           </Link>
         </div>
       </article>

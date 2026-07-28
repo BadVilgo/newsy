@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { refreshTopic, RateLimitError } from '@/lib/gemini';
-import { fetchRssBullets } from '@/lib/rssEngine';
+import { fetchRssBullets, RateLimitError } from '@/lib/rssEngine';
 
 export const maxDuration = 60;
 
@@ -44,24 +43,26 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const boxId = String(body.boxId || '');
   if (!boxId) return NextResponse.json({ error: 'Brak boxId.' }, { status: 400 });
-  // 'rss' = zakladka Newsy 2 (silnik w Pythonie), domyslnie 'search' = Newsy.
-  const method = body.method === 'rss' ? 'rss' : 'search';
 
   const { data: box, error: boxError } = await supabase
     .from('boxes')
-    .select('id, topic')
+    .select('id, topic, topic_en')
     .eq('id', boxId)
     .single();
   if (boxError || !box) return NextResponse.json({ error: 'Box nie istnieje.' }, { status: 404 });
 
   try {
-    const bullets =
-      method === 'rss' ? await fetchRssBullets(box.topic) : await refreshTopic(box.topic);
+    const { bullets, topicEn } = await fetchRssBullets(box.topic, box.topic_en);
+
+    // Gdy silnik musial policzyc tlumaczenie sam (brak cache), zapisujemy je na przyszlosc.
+    if (topicEn && topicEn !== box.topic_en) {
+      await supabase.from('boxes').update({ topic_en: topicEn }).eq('id', box.id);
+    }
 
     const { data: snapshot, error: insertError } = await supabase
       .from('snapshots')
-      .insert({ box_id: box.id, items: bullets, method })
-      .select('id, fetched_at, items, method')
+      .insert({ box_id: box.id, items: bullets, method: 'rss' })
+      .select('id, fetched_at, items')
       .single();
 
     if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
@@ -71,6 +72,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: err.message }, { status: 429 });
     }
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: 'Błąd Gemini: ' + message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -1,44 +1,27 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { Box as BoxType, Snapshot, NewsMethod } from '@/lib/types';
+import type { Box as BoxType, Snapshot } from '@/lib/types';
 import BoxCard from './Box';
 import AddBox from './AddBox';
 import Skeleton from './Skeleton';
 import EmptyState from './EmptyState';
 import Nav from './Nav';
 
-// Opis wersji pokazywany nad tablica - tlumaczy, czym rozni sie dana zakladka.
-const VARIANTS: Record<NewsMethod, { title: string; note: string }> = {
-  search: {
-    title: 'Newsy',
-    note: 'Wersja 1: Gemini samodzielnie przeszukuje sieć (Google grounding) i wybiera 4 najważniejsze newsy.',
-  },
-  rss: {
-    title: 'Newsy 2',
-    note: 'Wersja 2: 20 newsów z Google News RSS, a Gemini wybiera 4 najważniejsze i pisze własne opisy. Silnik w Pythonie (FastAPI).',
-  },
-};
+const PAGE_NOTE =
+  'Do 30 newsów z Google News RSS na temat, z których Gemini wybiera 4 najważniejsze i pisze własne opisy po polsku. Tylko wiadomości z ostatnich 48h, z priorytetem dla ostatniej doby.';
 
-export default function Dashboard({
-  username,
-  method = 'search',
-}: {
-  username: string;
-  method?: NewsMethod;
-}) {
+export default function Dashboard({ username }: { username: string }) {
   const [boxes, setBoxes] = useState<BoxType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragEnabledId, setDragEnabledId] = useState<string | null>(null);
 
-  const variant = VARIANTS[method];
-
   async function loadBoxes() {
     setLoading(true);
     setError('');
-    const res = await fetch(`/api/boxes?method=${method}`);
+    const res = await fetch('/api/boxes');
     const data = await res.json();
     if (!res.ok) {
       setError(data.error || 'Nie udało się pobrać boxów.');
@@ -50,8 +33,7 @@ export default function Dashboard({
 
   useEffect(() => {
     loadBoxes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [method]);
+  }, []);
 
   async function addBox(topic: string) {
     const res = await fetch('/api/boxes', {
@@ -85,7 +67,7 @@ export default function Dashboard({
     const res = await fetch('/api/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boxId: id, method }),
+      body: JSON.stringify({ boxId: id }),
     });
     const data = await res.json();
     if (!res.ok) return { ok: false, error: data.error };
@@ -139,10 +121,10 @@ export default function Dashboard({
 
   return (
     <main className="container">
-      <h1 className="sr-only">newsy.live - {variant.title}</h1>
+      <h1 className="sr-only">newsy.live - tablica tematów</h1>
       <Nav username={username} />
 
-      <p className="page-note">{variant.note}</p>
+      <p className="page-note">{PAGE_NOTE}</p>
 
       <AddBox onAdd={addBox} />
 

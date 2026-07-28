@@ -978,7 +978,7 @@ button:focus-visible,
   }
 }
 
-/* ===== Znacznik zagranicznego zrodla (Newsy 2, fallback US) ===== */
+/* ===== Znacznik zagranicznego zrodla (fallback na wydanie US) ===== */
 .foreign-badge {
   display: inline-block;
   margin-left: 7px;

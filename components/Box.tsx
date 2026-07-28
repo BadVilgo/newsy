@@ -159,7 +159,7 @@ export default function BoxCard({
           className={`tab${activeTab === 'recent' ? ' tab-active' : ''}`}
           onClick={() => setActiveTab('recent')}
         >
-          Ostatnie 24h
+          Najnowsze
         </button>
         <button
           type="button"
@@ -168,11 +168,11 @@ export default function BoxCard({
           className={`tab${activeTab === 'previous' ? ' tab-active' : ''}`}
           onClick={() => setActiveTab('previous')}
         >
-          Dzień wcześniej
+          Poprzednie
         </button>
       </div>
 
-      <div role="tabpanel" aria-label={activeTab === 'recent' ? 'Ostatnie 24h' : 'Dzień wcześniej'}>
+      <div role="tabpanel" aria-label={activeTab === 'recent' ? 'Najnowsze' : 'Poprzednie'}>
         <NewsSection snapshot={activeTab === 'recent' ? recent : previous} />
       </div>
     </div>

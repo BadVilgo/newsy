@@ -28,8 +28,8 @@ export default async function HomePage() {
           <Link href="/newsy" className="btn btn-primary btn-lg">
             Otwórz Newsy
           </Link>
-          <Link href="/newsy-2" className="btn btn-lg">
-            Wypróbuj Newsy 2 (RSS)
+          <Link href="/o-aplikacji" className="btn btn-lg">
+            Jak to działa
           </Link>
         </div>
       </section>
@@ -50,17 +50,17 @@ export default async function HomePage() {
           </p>
         </article>
         <article className="feature-card">
-          <h2 className="feature-title">24h i dzień wcześniej</h2>
+          <h2 className="feature-title">Zawsze świeże</h2>
           <p className="feature-text">
-            Każdy kafelek ma zakładki: co nowego w ostatniej dobie i jak wyglądało to samo
-            wczoraj - łatwo śledzić rozwój tematu.
+            Twarde odcięcie: żadnych wiadomości starszych niż 48h, z priorytetem dla ostatniej
+            doby. Zakładka „dzień wcześniej" pokazuje poprzedni stan tematu.
           </p>
         </article>
         <article className="feature-card">
-          <h2 className="feature-title">Dwie wersje silnika</h2>
+          <h2 className="feature-title">Także źródła zagraniczne</h2>
           <p className="feature-text">
-            Ten sam temat w dwóch wariantach: wyszukiwanie Gemini (Newsy) oraz Google News RSS
-            z silnikiem w Pythonie (Newsy 2). Porównaj sam.
+            Gdy o niszowym temacie milczą polskie media, aplikacja sięga po wydanie
+            amerykańskie - a opisy i tak dostajesz po polsku.
           </p>
         </article>
       </section>

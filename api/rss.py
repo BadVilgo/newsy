@@ -1,16 +1,24 @@
 """
-Silnik "Newsy 2" - mikroserwis w Pythonie (FastAPI), uruchamiany jako funkcja
+Silnik newsow - mikroserwis w Pythonie (FastAPI), uruchamiany jako funkcja
 serverless na Vercelu (plik w /api => endpoint POST /api/rss).
 
-Rola: cała logika RSS + AI dla drugiej zakladki newsow.
-  1. pobiera Google News RSS dla zadanego tematu (feedparser) - najpierw PL, a gdy PL ma
-     za malo swiezych pozycji, dobiera US (wieksza baza) i laczy obie pule; ograniczajac
-     zakres operatorem when: (1-2 dni) i TWARDO odrzucajac wszystko starsze niz 48h po pubDate,
-  2. sortuje po dacie (najnowsze) i bierze do 20 pozycji (naglowek + opis + zrodlo + link + data),
-  3. Gemini (google-genai) wybiera 4 najwazniejsze i pisze do kazdej WLASNY,
-     krotki opis po polsku na bazie naglowka i opisu,
-  4. zwraca gotowa liste `bullets` w tym samym ksztalcie co reszta appki:
-     { text, sources: [{ title, url }] }.
+Rola: cala logika RSS + AI aplikacji.
+  1. pobiera Google News RSS dla zadanego tematu (feedparser) - najpierw wydanie POLSKIE,
+     ograniczajac zakres operatorem when: (1-2 dni) i TWARDO odrzucajac wszystko starsze
+     niz 48h wg realnej daty publikacji (pubDate),
+  2. gdy polskie wydanie ma mniej niz MIN_PL_ITEMS swiezych pozycji (typowo tematy niszowe
+     lub globalne), tlumaczy temat na angielski i DOBIERA pozycje z wydania US - obie pule
+     sa LACZONE, wiec trafne polskie newsy nigdy nie znikaja na rzecz zagranicznych,
+  3. priorytetyzuje ostatnie 24h: jesli jest z nich dosc pozycji, starsze (24-48h) w ogole
+     nie trafiaja do modelu; 48h to sufit awaryjny,
+  4. Gemini (google-genai) JEDNYM wywolaniem wybiera do 4 najwazniejszych pozycji i pisze
+     do kazdej WLASNY, krotki opis po polsku - takze dla naglowkow angielskich (model jest
+     wielojezyczny, wiec osobny krok tlumaczenia jest zbedny i tylko pogarszalby jakosc),
+  5. zwraca gotowa liste `bullets` w tym samym ksztalcie co reszta appki:
+     { text, sources: [{ title, url }], foreign }.
+
+Tytulow zrodel NIE tlumaczymy - link ma pokazywac prawdziwy naglowek, inaczej user nie
+odnajdzie artykulu.
 
 Warstwa TypeScript (Next.js) tylko wola ten endpoint i zapisuje wynik do Supabase -
 dzieki temu logika RSS/AI zyje w jednym miejscu (tu), a baza i auth zostaja po stronie TS.
@@ -18,40 +26,44 @@ dzieki temu logika RSS/AI zyje w jednym miejscu (tu), a baza i auth zostaja po s
 Uwaga dev: pod `next dev` ten plik NIE dziala (to runtime Pythona Vercela). Testuj na
 deployu Vercela albo przez `vercel dev`.
 """
-import calendar
 import html
 import json
 import os
 import re
 import time
-from datetime import datetime, timezone
 from urllib.parse import quote_plus
+
+import calendar
+from datetime import datetime, timezone
 
 import feedparser
 from fastapi import FastAPI, Header, HTTPException
 from google import genai
 from pydantic import BaseModel
 
-# Ile pozycji z RSS podajemy modelowi do selekcji.
-RSS_ITEMS = 20
-# Ile newsow ma finalnie wybrac Gemini (mniej, jesli temat niszowy i pozycji jest mniej).
+# Ile pozycji z RSS podajemy modelowi do selekcji (wiekszy wybor = lepsza selekcja,
+# a koszt rosnie minimalnie, bo to tylko tokeny wejsciowe).
+RSS_ITEMS = 30
+# Ile newsow ma finalnie wybrac Gemini. Gdy swiezych pozycji jest mniej, zwracamy tyle,
+# ile jest (1-3) - lepiej pokazac mniej niz nic.
 SELECT_COUNT = 4
-# TWARDE odciecie wieku: w Newsy 2 nie pokazujemy nic starszego niz 48h. Filtrujemy po
-# realnej dacie publikacji (pubDate), niezaleznie od tego, co zwroci operator when:.
+# Ponizej tylu swiezych pozycji w wydaniu PL dobieramy dodatkowo wydanie US.
+MIN_PL_ITEMS = 8
+# TWARDE odciecie wieku: nie pokazujemy nic starszego niz 48h (wg pubDate).
 MAX_AGE_HOURS = 48
-# Google News sortuje wyniki wyszukiwania po TRAFNOSCI i bez limitu czasu, wiec bez tego
-# operatora do wynikow wpadaja stare artykuly. `when:1d`/`when:2d` ograniczaja zakres.
-# Zaczynamy od 1 dnia (najswiezsze); gdy za malo pozycji, poszerzamy do 2 dni. Szerzej
-# nie idziemy - i tak twardy filtr 48h nizej odrzucilby starsze wpisy.
+# Priorytet swiezosci: jesli z ostatnich 24h jest co najmniej SELECT_COUNT pozycji,
+# model dostaje WYLACZNIE je. Starsze (24-48h) sluza tylko jako uzupelnienie.
+PRIORITY_AGE_HOURS = 24
+# Google News sortuje wyniki po TRAFNOSCI i bez limitu czasu, wiec bez operatora when:
+# do wynikow wpadaja stare artykuly. Zaczynamy od 1 dnia, potem 2 - szerzej nie ma sensu,
+# bo twardy filtr 48h i tak odrzucilby starsze wpisy.
 SEARCH_WINDOWS = ["when:1d", "when:2d"]
-# Ile pozycji chcemy miec do sensownej selekcji - ponizej tego progu poszerzamy okno.
-MIN_ITEMS = 8
 GEMINI_MODEL = "gemini-2.5-flash"
+# Tlumaczenie tematu to zadanie trywialne - mozna tu podstawic tanszy model.
+TRANSLATE_MODEL = GEMINI_MODEL
 # feedparser bez naglowka User-Agent bywa odrzucany - podszywamy sie pod przegladarke.
 USER_AGENT = "Mozilla/5.0 (compatible; newsy.live/1.0; +https://newsy-nine.vercel.app)"
-# Parametry lokalizacji Google News. Zaczynamy od PL; gdy PL ma za malo swiezych newsow
-# (typowo tematy niszowe/globalne), dobieramy US - tam baza jest wieksza i swiezsza.
-# Gemini i tak pisze opisy po polsku, wiec zagraniczne pozycje sa "tlumaczone" u zrodla.
+# Parametry lokalizacji Google News.
 REGIONS = {
     "pl": "hl=pl&gl=PL&ceid=PL:pl",
     "us": "hl=en-US&gl=US&ceid=US:en",
@@ -74,6 +86,11 @@ def get_client() -> genai.Client:
 
 class RssRequest(BaseModel):
     topic: str
+    # Angielski wariant tematu zcache'owany w bazie (kolumna boxes.topic_en). Gdy podany,
+    # oszczedzamy wywolanie tlumaczace przy kazdym odswiezeniu.
+    topic_en: str | None = None
+    # Tryb pomocniczy: policz samo tlumaczenie tematu (uzywane przy dodawaniu/edycji boxa).
+    translate_only: bool = False
 
 
 def check_secret(provided: str | None) -> None:
@@ -111,19 +128,17 @@ def entry_timestamp(entry) -> float | None:
         return None
 
 
-def parse_feed(topic: str, window: str, region: str) -> list[dict]:
-    query = f"{topic} {window}".strip()
+def parse_feed(query: str, window: str, region: str) -> list[dict]:
     url = (
         "https://news.google.com/rss/search?q="
-        + quote_plus(query)
+        + quote_plus(f"{query} {window}".strip())
         + "&"
         + REGIONS[region]
     )
     feed = feedparser.parse(url, agent=USER_AGENT)
     items: list[dict] = []
     for entry in feed.entries:
-        title = getattr(entry, "title", "") or ""
-        headline, source_in_title = split_headline(title)
+        headline, source_in_title = split_headline(getattr(entry, "title", "") or "")
         source = ""
         if getattr(entry, "source", None) is not None:
             source = getattr(entry.source, "title", "") or ""
@@ -146,32 +161,63 @@ def parse_feed(topic: str, window: str, region: str) -> list[dict]:
     return items
 
 
-def collect_fresh(topic: str, region: str) -> list[dict]:
-    """Pozycje z jednego regionu: poszerza okno do MIN_ITEMS, po czym TWARDO odrzuca
+def collect_fresh(query: str, region: str) -> list[dict]:
+    """Pozycje z jednego wydania: poszerza okno do MIN_PL_ITEMS, po czym TWARDO odrzuca
     wszystko starsze niz MAX_AGE_HOURS (oraz wpisy bez daty - nie da sie potwierdzic wieku)."""
     items: list[dict] = []
     for window in SEARCH_WINDOWS:
-        items = parse_feed(topic, window, region)
-        if len(items) >= MIN_ITEMS:
+        items = parse_feed(query, window, region)
+        if len(items) >= MIN_PL_ITEMS:
             break
     cutoff = time.time() - MAX_AGE_HOURS * 3600
     return [it for it in items if it["ts"] is not None and it["ts"] >= cutoff]
 
 
-def fetch_rss_items(topic: str) -> list[dict]:
-    """Najpierw PL. Gdy PL ma mniej niz SELECT_COUNT swiezych pozycji (typowo tematy
-    niszowe/globalne), dobiera US i LACZY obie pule (PL zostaje, US uzupelnia). Na koniec
-    sortuje od najnowszych i przycina do RSS_ITEMS."""
-    combined = collect_fresh(topic, "pl")
-    if len(combined) < SELECT_COUNT:
-        seen = {it["url"] for it in combined}
-        combined = combined + [it for it in collect_fresh(topic, "us") if it["url"] not in seen]
-    combined.sort(key=lambda it: it["ts"], reverse=True)
-    return combined[:RSS_ITEMS]
+def translate_topic(topic: str) -> str:
+    """Zamienia polski temat na zwiezle angielskie haslo wyszukiwania.
+    Powod: do wydania US trzeba wyslac angielskie slowa kluczowe - polska fraza opisowa
+    (np. "Postepy nad agentami AI") nie dopasowuje tam praktycznie niczego."""
+    prompt = (
+        "Przetlumacz ponizszy temat wiadomosci na zwiezle ANGIELSKIE haslo wyszukiwania "
+        "do Google News (2-4 slowa kluczowe, bez cudzyslowow, bez wyjasnien). "
+        "Jesli temat to nazwa wlasna, zostaw ja bez zmian.\n\n"
+        f"Temat: {topic}"
+    )
+    try:
+        response = get_client().models.generate_content(model=TRANSLATE_MODEL, contents=prompt)
+        first_line = (response.text or "").strip().splitlines()[0]
+        cleaned = first_line.strip().strip('"').strip("'").strip()
+        return cleaned or topic
+    except (IndexError, AttributeError):
+        return topic
+
+
+def fetch_rss_items(topic: str, topic_en: str | None) -> tuple[list[dict], str | None]:
+    """Buduje pule pozycji dla modelu. Zwraca (pozycje, uzyte_tlumaczenie_lub_None).
+
+    PL najpierw; gdy PL ma za malo swiezych newsow, DOBIERA (nie zastepuje!) wydanie US
+    po angielskim hasle. Na koniec priorytetyzuje ostatnie 24h i przycina do RSS_ITEMS.
+    """
+    pool = collect_fresh(topic, "pl")
+    used_topic_en: str | None = None
+
+    if len(pool) < MIN_PL_ITEMS:
+        used_topic_en = (topic_en or "").strip() or translate_topic(topic)
+        seen = {it["url"] for it in pool}
+        pool = pool + [it for it in collect_fresh(used_topic_en, "us") if it["url"] not in seen]
+
+    pool.sort(key=lambda it: it["ts"], reverse=True)
+
+    # Priorytet 24h: starsze pozycje wchodza do gry tylko wtedy, gdy swiezych jest za malo.
+    priority_cutoff = time.time() - PRIORITY_AGE_HOURS * 3600
+    fresh_24h = [it for it in pool if it["ts"] >= priority_cutoff]
+    selected = fresh_24h if len(fresh_24h) >= SELECT_COUNT else pool
+
+    return selected[:RSS_ITEMS], used_topic_en
 
 
 def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
-    """Gemini: wybierz najwazniejsze pozycje i napisz do kazdej wlasny krotki opis PL."""
+    """Gemini: JEDNO wywolanie - wybor najwazniejszych pozycji + wlasne opisy po polsku."""
     count = min(SELECT_COUNT, len(items))
     numbered = "\n".join(
         f"{i}. {it['headline']}"
@@ -224,12 +270,13 @@ def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
             continue
         seen.add(idx)
         item = items[idx]
+        # Tytul zrodla zostaje w oryginale - link ma prowadzic do rozpoznawalnego artykulu.
         source_title = item["headline"] or item["source"] or "zrodlo"
         bullets.append(
             {
                 "text": summary,
                 "sources": [{"title": source_title, "url": item["url"]}] if item["url"] else [],
-                # Znacznik dla UI: pozycja pochodzi z zagranicznego (nie-PL) wydania Google News.
+                # Znacznik dla UI: pozycja z zagranicznego (nie-PL) wydania Google News.
                 "foreign": item["region"] != "pl",
             }
         )
@@ -239,17 +286,17 @@ def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
     return bullets
 
 
-def run(topic: str) -> list[dict]:
+def run(topic: str, topic_en: str | None) -> tuple[list[dict], str | None]:
     trimmed = (topic or "").strip()
     if not trimmed:
         raise HTTPException(status_code=400, detail="Podaj temat.")
-    items = fetch_rss_items(trimmed)
+    items, used_topic_en = fetch_rss_items(trimmed, topic_en)
     if not items:
         raise HTTPException(
             status_code=404,
-            detail="Brak newsow z ostatnich 48h dla tego tematu.",
+            detail="Nie znaleziono istotnych wiadomosci dla tego tematu z ostatnich 48h.",
         )
-    return select_and_summarize(trimmed, items)
+    return select_and_summarize(trimmed, items), used_topic_en
 
 
 # Vercel przekazuje pelna sciezke do funkcji ASGI - rejestrujemy oba warianty,
@@ -258,7 +305,17 @@ def run(topic: str) -> list[dict]:
 @app.post("/")
 def rss(req: RssRequest, x_engine_secret: str | None = Header(default=None)):
     check_secret(x_engine_secret)
-    return {"bullets": run(req.topic)}
+
+    if req.translate_only:
+        trimmed = (req.topic or "").strip()
+        if not trimmed:
+            raise HTTPException(status_code=400, detail="Podaj temat.")
+        return {"topic_en": translate_topic(trimmed)}
+
+    bullets, used_topic_en = run(req.topic, req.topic_en)
+    # Gdy tlumaczenie policzylismy tutaj, oddajemy je warstwie TS, ktora zapisze je w bazie
+    # (kolumna boxes.topic_en) - kolejne odswiezenia nie beda go juz liczyc.
+    return {"bullets": bullets, "topic_en": used_topic_en}
 
 
 @app.get("/api/rss")

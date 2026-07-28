@@ -1,22 +1,22 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { translateTopic } from '@/lib/rssEngine';
 
-export async function GET(request: Request) {
+// Snapshoty zapisujemy z metoda 'rss' (silnik w Pythonie). Stare wpisy z poprzedniego
+// wariantu (grounding, method='search') zostaja w bazie, ale ich nie pokazujemy.
+const METHOD = 'rss';
+
+export async function GET() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Niezalogowany.' }, { status: 401 });
 
-  // Ktora wersja newsow: 'search' (Newsy) lub 'rss' (Newsy 2). Boxy (tematy) sa wspolne,
-  // ale snapshoty filtrujemy po metodzie - kazda zakladka widzi swoje wyniki.
-  const methodParam = new URL(request.url).searchParams.get('method');
-  const method = methodParam === 'rss' ? 'rss' : 'search';
-
   const { data: boxes, error } = await supabase
     .from('boxes')
-    .select('id, topic, position, created_at, snapshots(id, fetched_at, items, method)')
-    .eq('snapshots.method', method)
+    .select('id, topic, topic_en, position, created_at, snapshots(id, fetched_at, items)')
+    .eq('snapshots.method', METHOD)
     .order('position', { ascending: true })
     .order('fetched_at', { referencedTable: 'snapshots', ascending: false })
     .limit(2, { referencedTable: 'snapshots' });
@@ -44,10 +44,14 @@ export async function POST(request: Request) {
     .maybeSingle();
   const position = (last?.position ?? -1) + 1;
 
+  // Angielskie haslo liczymy RAZ, przy dodaniu tematu - odswiezanie korzysta juz z cache.
+  // Best-effort: gdy silnik nie odpowie, box i tak powstaje (tlumaczenie doliczy sie pozniej).
+  const topicEn = await translateTopic(topic).catch(() => null);
+
   const { data, error } = await supabase
     .from('boxes')
-    .insert({ user_id: user.id, topic, position })
-    .select('id, topic, position, created_at')
+    .insert({ user_id: user.id, topic, topic_en: topicEn, position })
+    .select('id, topic, topic_en, position, created_at')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

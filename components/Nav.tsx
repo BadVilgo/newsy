@@ -9,7 +9,6 @@ import { NewsIcon, MenuIcon, CloseIcon } from './icons';
 const LINKS = [
   { href: '/', label: 'Home' },
   { href: '/newsy', label: 'Newsy' },
-  { href: '/newsy-2', label: 'Newsy 2' },
   { href: '/o-aplikacji', label: 'O aplikacji' },
   { href: '/kontakt', label: 'Kontakt' },
 ];

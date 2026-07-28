@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { translateTopic } from '@/lib/rssEngine';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,11 +14,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const topic = String(body.topic || '').trim();
   if (!topic) return NextResponse.json({ error: 'Podaj temat.' }, { status: 400 });
 
+  // Temat sie zmienil, wiec zcache'owane angielskie haslo trzeba przeliczyc.
+  const topicEn = await translateTopic(topic).catch(() => null);
+
   const { data, error } = await supabase
     .from('boxes')
-    .update({ topic })
+    .update({ topic, topic_en: topicEn })
     .eq('id', id)
-    .select('id, topic, position, created_at')
+    .select('id, topic, topic_en, position, created_at')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

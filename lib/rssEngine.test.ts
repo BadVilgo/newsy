@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { rssEngineUrl, describeError, fetchRssBullets } from '@/lib/rssEngine';
+import {
+  rssEngineUrl,
+  describeError,
+  fetchRssBullets,
+  translateTopic,
+  RateLimitError,
+} from '@/lib/rssEngine';
 
 const ENV_KEYS = ['RSS_ENGINE_URL', 'VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_URL', 'RSS_ENGINE_SECRET'];
 
@@ -88,13 +94,45 @@ describe('fetchRssBullets', () => {
     process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
     const bullets = [{ text: 'news', sources: [] }];
     mockFetch({ ok: true, status: 200, json: async () => ({ bullets }) });
-    await expect(fetchRssBullets('Polska')).resolves.toEqual(bullets);
+    await expect(fetchRssBullets('Polska')).resolves.toEqual({ bullets, topicEn: null });
+  });
+
+  it('oddaje topic_en policzony przez silnik (do zapisania w cache)', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    mockFetch({ ok: true, status: 200, json: async () => ({ bullets: [], topic_en: 'AI agents' }) });
+    const result = await fetchRssBullets('Postępy nad agentami AI');
+    expect(result.topicEn).toBe('AI agents');
+  });
+
+  it('wysyla zcache-owany topic_en do silnika', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    const spy = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ bullets: [] }) });
+    global.fetch = spy as unknown as typeof fetch;
+    await fetchRssBullets('Postępy nad agentami AI', 'AI agents');
+    const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
+    expect(body).toMatchObject({ topic: 'Postępy nad agentami AI', topic_en: 'AI agents' });
   });
 
   it('rzuca czytelny blad przy 401 Protected deployment', async () => {
     process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
     mockFetch({ ok: false, status: 401, json: async () => ({ message: 'Protected deployment' }) });
     await expect(fetchRssBullets('Polska')).rejects.toThrow('Protected deployment');
+  });
+
+  it('mapuje 429 na RateLimitError (daily refresh przerywa reszte)', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    mockFetch({ ok: false, status: 429, json: async () => ({ detail: 'limit' }) });
+    await expect(fetchRssBullets('Polska')).rejects.toBeInstanceOf(RateLimitError);
+  });
+
+  it('przekazuje komunikat o braku swiezych newsow (404)', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    mockFetch({
+      ok: false,
+      status: 404,
+      json: async () => ({ detail: 'Nie znaleziono istotnych wiadomosci dla tego tematu z ostatnich 48h.' }),
+    });
+    await expect(fetchRssBullets('UAP')).rejects.toThrow(/ostatnich 48h/);
   });
 
   it('wykrywa przekierowanie (3xx) i tlumaczy przyczyne', async () => {
@@ -111,5 +149,35 @@ describe('fetchRssBullets', () => {
     await fetchRssBullets('Polska');
     const init = spy.mock.calls[0][1] as RequestInit;
     expect((init.headers as Record<string, string>)['x-engine-secret']).toBe('tajne');
+  });
+});
+
+describe('translateTopic', () => {
+  const realFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = realFetch;
+    vi.restoreAllMocks();
+    delete process.env.RSS_ENGINE_URL;
+  });
+
+  it('prosi silnik o samo tlumaczenie tematu', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    const spy = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ topic_en: 'AI agents' }) });
+    global.fetch = spy as unknown as typeof fetch;
+
+    await expect(translateTopic('Postępy nad agentami AI')).resolves.toBe('AI agents');
+    const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.translate_only).toBe(true);
+  });
+
+  it('zwraca null, gdy silnik nie odda tlumaczenia', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    global.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }) as unknown as typeof fetch;
+    await expect(translateTopic('Polska')).resolves.toBeNull();
   });
 });
