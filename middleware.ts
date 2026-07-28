@@ -3,7 +3,15 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
+// Trasy dostępne bez logowania (wizytówka projektu). Reszta wymaga sesji.
+const PUBLIC_PAGES = new Set(['/', '/o-aplikacji', '/kontakt']);
+
 export async function middleware(request: NextRequest) {
+  // Strony wizytówkowe przepuszczamy od razu, BEZ odpytywania Supabase. Nie potrzebują
+  // sesji (Nav sprawdza ją po stronie klienta), więc odpada zbędny roundtrip przy każdym
+  // wejściu - a strony statyczne serwują się bez zależności od backendu.
+  if (PUBLIC_PAGES.has(request.nextUrl.pathname)) return NextResponse.next();
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -40,7 +48,7 @@ export async function middleware(request: NextRequest) {
 
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = '/newsy';
     return NextResponse.redirect(url);
   }
 

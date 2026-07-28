@@ -21,3 +21,11 @@ npm-debug.log*
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+
+# lighthouse ci
+.lighthouseci/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/

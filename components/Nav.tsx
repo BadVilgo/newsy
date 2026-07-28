@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { emailToUsername } from '@/lib/username';
 import { NewsIcon, MenuIcon, CloseIcon } from './icons';
 
 const LINKS = [
@@ -13,14 +14,33 @@ const LINKS = [
   { href: '/kontakt', label: 'Kontakt' },
 ];
 
-export default function Nav({ username }: { username: string }) {
+/**
+ * Sesje czytamy po stronie KLIENTA, a nie z ciasteczek na serwerze. Dzieki temu strony
+ * publiczne (/, /o-aplikacji, /kontakt) nie sa dynamiczne i moga byc prerenderowane
+ * statycznie - szybszy LCP i realny SEO dla niezalogowanych odwiedzajacych.
+ */
+export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
   const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!active) return;
+      setUsername(data.user?.email ? emailToUsername(data.user.email) : null);
+      setReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await createClient().auth.signOut();
     router.push('/login');
     router.refresh();
   }
@@ -69,13 +89,24 @@ export default function Nav({ username }: { username: string }) {
           })}
         </nav>
 
-        <div className="user-area">
-          {username && <span className="avatar">{username.charAt(0) || '?'}</span>}
-          {username && <span className="user-name">{username}</span>}
-          <button className="btn" onClick={signOut}>
-            Wyloguj
-          </button>
-        </div>
+        {/* Dopoki nie znamy stanu sesji, nie renderujemy nic - inaczej mignelby zly przycisk. */}
+        {ready && (
+          <div className="user-area">
+            {username ? (
+              <>
+                <span className="avatar">{username.charAt(0) || '?'}</span>
+                <span className="user-name">{username}</span>
+                <button className="btn" onClick={signOut}>
+                  Wyloguj
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="btn">
+                Zaloguj
+              </Link>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

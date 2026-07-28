@@ -21,7 +21,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Testy
+      - name: Testy (Vitest + RTL + axe)
         run: npm test
 
       - name: Build
@@ -30,3 +30,15 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           GEMINI_API_KEY: placeholder
+
+      # Silnik newsów jest w Pythonie, więc jego logika ma własny zestaw testów.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Zależności Pythona
+        run: pip install -r requirements-dev.txt
+
+      - name: Testy silnika (pytest)
+        run: pytest tests/ -q

@@ -278,6 +278,8 @@ def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
                 "sources": [{"title": source_title, "url": item["url"]}] if item["url"] else [],
                 # Znacznik dla UI: pozycja z zagranicznego (nie-PL) wydania Google News.
                 "foreign": item["region"] != "pl",
+                # Data publikacji zrodla w ISO 8601 (UTC) - UI formatuje ja lokalnie.
+                "published": datetime.fromtimestamp(item["ts"], tz=timezone.utc).isoformat(),
             }
         )
 

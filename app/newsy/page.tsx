@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { currentUsername } from '@/lib/currentUsername';
 import Dashboard from '@/components/Dashboard';
 
 export const metadata: Metadata = {
@@ -9,6 +8,6 @@ export const metadata: Metadata = {
   alternates: { canonical: '/newsy' },
 };
 
-export default async function NewsyPage() {
-  return <Dashboard username={await currentUsername()} />;
+export default function NewsyPage() {
+  return <Dashboard />;
 }

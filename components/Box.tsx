@@ -92,28 +92,35 @@ export default function BoxCard({
           </div>
         )}
         <div className="card-actions">
+          {/* Strzałki są dostępne na KAŻDEJ szerokości - to jedyny sposób zmiany kolejności
+              działający z klawiatury. Drag & drop (uchwyt obok tytułu) jest tylko dodatkiem
+              dla myszy; gdyby strzałki znikały na desktopie, reorder łamałby WCAG 2.1.1. */}
           <button
-            className="icon-btn mobile-only"
+            className="icon-btn"
             onClick={() => onMove(box.id, -1)}
             disabled={isFirst}
-            aria-label="Przenieś wyżej"
+            aria-label={`Przenieś temat "${box.topic}" wyżej`}
           >
             <ArrowUpIcon />
           </button>
           <button
-            className="icon-btn mobile-only"
+            className="icon-btn"
             onClick={() => onMove(box.id, 1)}
             disabled={isLast}
-            aria-label="Przenieś niżej"
+            aria-label={`Przenieś temat "${box.topic}" niżej`}
           >
             <ArrowDownIcon />
           </button>
           {editing ? (
-            <button className="icon-btn accent" onClick={saveEdit} aria-label="Zapisz">
+            <button className="icon-btn accent" onClick={saveEdit} aria-label="Zapisz temat">
               <CheckIcon />
             </button>
           ) : (
-            <button className="icon-btn" onClick={() => setEditing(true)} aria-label="Edytuj temat">
+            <button
+              className="icon-btn"
+              onClick={() => setEditing(true)}
+              aria-label={`Edytuj temat "${box.topic}"`}
+            >
               <EditIcon />
             </button>
           )}
@@ -121,11 +128,15 @@ export default function BoxCard({
             className={`icon-btn${refreshing ? '' : ' accent'}`}
             onClick={handleRefresh}
             disabled={refreshing}
-            aria-label="Odśwież"
+            aria-label={`Odśwież temat "${box.topic}"`}
           >
             {refreshing ? <span className="spinner" /> : <RefreshIcon />}
           </button>
-          <button className="icon-btn" onClick={() => onDelete(box.id)} aria-label="Usuń">
+          <button
+            className="icon-btn"
+            onClick={() => onDelete(box.id)}
+            aria-label={`Usuń temat "${box.topic}"`}
+          >
             <TrashIcon />
           </button>
         </div>

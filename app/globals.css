@@ -993,3 +993,18 @@ button:focus-visible,
   vertical-align: middle;
   font-family: ui-monospace, monospace;
 }
+
+/* ===== Meta pod newsem: data publikacji + przelacznik zrodel ===== */
+.bullet-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.bullet-date {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+}

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { currentUsername } from '@/lib/currentUsername';
 import Nav from '@/components/Nav';
 import { LinkIcon } from '@/components/icons';
 
@@ -12,12 +11,10 @@ export const metadata: Metadata = {
 const EMAIL = 'gnatowski.adam.biz@gmail.com';
 const GITHUB = 'https://github.com/BadVilgo';
 
-export default async function ContactPage() {
-  const username = await currentUsername();
-
+export default function ContactPage() {
   return (
     <main className="container">
-      <Nav username={username} />
+      <Nav />
 
       <article className="prose prose-narrow">
         <span className="hero-badge">Kontakt</span>

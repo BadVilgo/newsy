@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { currentUsername } from '@/lib/currentUsername';
 import Nav from '@/components/Nav';
 
 export const metadata: Metadata = {
@@ -10,12 +9,10 @@ export const metadata: Metadata = {
   alternates: { canonical: '/o-aplikacji' },
 };
 
-export default async function AboutPage() {
-  const username = await currentUsername();
-
+export default function AboutPage() {
   return (
     <main className="container">
-      <Nav username={username} />
+      <Nav />
 
       <article className="prose">
         <span className="hero-badge">O aplikacji</span>

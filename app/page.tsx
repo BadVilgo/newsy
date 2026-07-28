@@ -1,13 +1,12 @@
 import Link from 'next/link';
-import { currentUsername } from '@/lib/currentUsername';
 import Nav from '@/components/Nav';
 
-export default async function HomePage() {
-  const username = await currentUsername();
-
+// Strona wizytowkowa - w pelni statyczna (brak dostepu do ciasteczek), wiec Next
+// prerenderuje ja na etapie builda: szybki LCP i tresc widoczna dla crawlerow.
+export default function HomePage() {
   return (
     <main className="container">
-      <Nav username={username} />
+      <Nav />
 
       <section className="hero">
         <span className="hero-badge">

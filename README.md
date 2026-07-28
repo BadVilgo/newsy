@@ -18,7 +18,10 @@ doby.
 ## Stack
 
 - **Next.js 15 (App Router) + TypeScript** - frontend (React) i backend (API routes) w jednym
-  repo, jeden deploy. Nie ma tu osobnego serwera Express do utrzymywania.
+  repo, jeden deploy. Nie ma tu osobnego serwera Express do utrzymywania. Strony wizytówkowe
+  są prerenderowane statycznie, dashboard renderuje się po stronie klienta.
+- **TanStack Query** - warstwa danych w dashboardzie: cache, ponowienia i optimistic updates
+  przy usuwaniu, edycji i zmianie kolejności tematów.
 - **Python 3 + FastAPI** - osobny mikroserwis (`api/rss.py`) z całą logiką RSS i AI, wdrażany
   jako funkcja serverless na tym samym Vercelu. Warstwa TypeScript tylko go woła i zapisuje wynik.
 - **Supabase (Postgres + Auth)** - relacyjna baza z Row Level Security zamiast pilnowania dostępu
@@ -89,6 +92,32 @@ kolejne żądania trafiają na różne instancje.
 spodem, więc `lib/username.ts` mapuje login na syntetyczny adres. Żaden e-mail nigdzie nie jest
 wysyłany, to czysto techniczny szczegół.
 
+### Dostępność i wydajność
+
+Strony wizytówkowe (`/`, `/o-aplikacji`, `/kontakt`) są otwarte i **prerenderowane statycznie**.
+Middleware przepuszcza je bez odpytywania Supabase, więc nie ma zbędnego roundtripu do bazy, a
+treść jest widoczna dla crawlerów - wcześniej wszystko lądowało na `/login` i sitemap z OG były
+w praktyce martwe.
+
+Zmiana kolejności tematów działa **z klawiatury**. Drag & drop (uchwyt przy tytule) to tylko
+dodatek dla myszy - strzałki góra/dół są dostępne na każdej szerokości ekranu. Wcześniej były
+ukryte na desktopie klasą `mobile-only`, co czyniło reorder niedostępnym (WCAG 2.1.1). Test w
+`components/Box.test.tsx` pilnuje, żeby to nie wróciło.
+
+Etykiety akcji zawierają nazwę tematu (`Odśwież temat "UAP"`), bo przy kilkunastu kafelkach
+czytnik ekranu odczytywałby kilkanaście identycznych "Odśwież".
+
+Audyt dostępności jest zautomatyzowany dwutorowo: **axe** działa na renderowanych komponentach
+w testach jednostkowych, a **Lighthouse CI** mierzy gotowe strony w prawdziwej przeglądarce
+(axe pod jsdom nie liczy kontrastu, Lighthouse tak - stąd oba).
+
+Wyniki Lighthouse dla stron publicznych (preset desktop, mediana z 3 przebiegów):
+
+| Strona | Performance | Accessibility | Best practices | SEO | LCP | CLS |
+|---|---|---|---|---|---|---|
+| `/` | 100 | 100 | 100 | 100 | 466 ms | 0.004 |
+| `/o-aplikacji` | 100 | 100 | 100 | 100 | 462 ms | 0.004 |
+
 ### Dwie pułapki, które kosztowały najwięcej czasu
 
 Obie dotyczą wołania własnej funkcji Pythona z własnego backendu i obie objawiały się tym samym:
@@ -106,17 +135,32 @@ albo `message` i serializuje obiekty, więc w UI widać przyczynę, a nie `[obje
 
 ## Testy i CI
 
-Unit testy (Vitest) pokrywają czystą logikę, którą najłatwiej zepsuć po cichu: klienta silnika
-RSS - rozwiązywanie adresu, cache tłumaczenia, mapowanie błędów i wykrywanie przekierowań
-(`lib/rssEngine.test.ts`), mapowanie login na adres (`lib/username.test.ts`) oraz autoryzację
-endpointu cron (`app/api/cron/refresh/route.test.ts`).
+**48 testów po stronie TypeScriptu** (Vitest):
+
+- logika serwerowa - klient silnika RSS: rozwiązywanie adresu, cache tłumaczenia, mapowanie
+  błędów i wykrywanie przekierowań (`lib/rssEngine.test.ts`), mapowanie login na adres
+  (`lib/username.test.ts`), autoryzacja endpointu cron (`app/api/cron/refresh/route.test.ts`),
+- komponenty (React Testing Library) - przełączanie zakładek i dostępność reorderu
+  (`components/Box.test.tsx`), rozwijanie źródeł i data publikacji (`BulletItem.test.tsx`),
+  menu mobilne i stan sesji (`Nav.test.tsx`), integracja z TanStack Query wraz z dowodem, że
+  usuwanie jest optimistic (`Dashboard.test.tsx`),
+- **axe** - audyt dostępności renderowanych komponentów, wpięty w te same testy.
+
+**19 testów po stronie Pythona** (pytest, `tests/test_rss.py`) - tam siedzi logika biznesowa
+silnika: twarde odcięcie 48h, priorytet ostatnich 24h, łączenie i deduplikacja pul PL + US,
+korzystanie ze zcache'owanego tłumaczenia, budowanie punktów ze źródłem i datą.
 
 ```
-npm test          # uruchom testy
+npm test          # testy TypeScriptu (Vitest + RTL + axe)
+npm run test:py   # testy silnika (pytest)
 npm run typecheck # tsc --noEmit
+npm run lighthouse # audyt Lighthouse na lokalnym buildzie
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) na każdy push i PR odpala typecheck, testy i build.
+GitHub Actions odpala na każdy push i PR: typecheck, testy TS, build i testy Pythona
+(`.github/workflows/ci.yml`) oraz audyt Lighthouse z budżetami wydajności
+(`.github/workflows/lighthouse.yml`). Progi są w `lighthouserc.json` - dostępność i SEO blokują
+build, wydajność ostrzega (wyniki w CI bywają zmienne).
 
 ## Struktura
 
@@ -124,8 +168,10 @@ GitHub Actions (`.github/workflows/ci.yml`) na każdy push i PR odpala typecheck
 api/
   rss.py                      # silnik: Google News RSS + selekcja i opisy przez Gemini (FastAPI)
 requirements.txt              # zależności Pythona (feedparser, google-genai, fastapi)
+requirements-dev.txt          # + pytest
+tests/test_rss.py             # testy logiki silnika (pytest)
 app/
-  page.tsx                    # strona główna (landing)
+  page.tsx                    # strona główna (landing, statyczna)
   newsy/page.tsx              # dashboard z tablicą tematów
   o-aplikacji/page.tsx        # opis produktu
   kontakt/page.tsx            # kontakt
@@ -140,9 +186,11 @@ lib/
   username.ts                 # mapowanie login <-> syntetyczny e-mail
   supabase/                   # klienci: przeglądarka / serwer / admin (service_role)
   types.ts
-components/                   # Nav, Dashboard, Box, AddBox, NewsSection, BulletItem
+components/                   # Nav, Dashboard, Box, AddBox, NewsSection, BulletItem, Providers
+                              # (+ testy .test.tsx obok komponentów)
 supabase/schema.sql           # tabele + polityki RLS
-middleware.ts                 # odświeżanie sesji Supabase + ochrona tras
+middleware.ts                 # ochrona tras (strony publiczne przepuszczane bez Supabase)
+lighthouserc.json             # progi Core Web Vitals, dostępności i SEO
 .github/workflows/refresh.yml # harmonogram codziennego odświeżania (GitHub Actions)
 ```
 
