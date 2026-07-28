@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { fetchRssBullets, RateLimitError } from '@/lib/rssEngine';
+import { fetchRssBullets, RateLimitError, NoFreshNewsError } from '@/lib/rssEngine';
 
 export const maxDuration = 60;
 
@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let refreshed = 0;
+  let skipped = 0;
   const failures: { boxId: string; error: string }[] = [];
 
   for (const box of boxes ?? []) {
@@ -32,6 +33,11 @@ export async function GET(request: Request) {
         refreshed++;
       }
     } catch (err) {
+      // Brak świeżych newsów to normalny wynik, nie awaria - nie raportujemy go jako błąd.
+      if (err instanceof NoFreshNewsError) {
+        skipped++;
+        continue;
+      }
       if (err instanceof RateLimitError) {
         failures.push({ boxId: box.id, error: 'rate limit - przerwano' });
         break;
@@ -40,5 +46,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ refreshed, failures });
+  return NextResponse.json({ refreshed, skipped, failures });
 }

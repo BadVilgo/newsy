@@ -16,7 +16,7 @@
  *   npx tsx --env-file=.env.local scripts/refresh.ts
  */
 import { createAdminClient } from '../lib/supabase/admin';
-import { fetchRssBullets, RateLimitError } from '../lib/rssEngine';
+import { fetchRssBullets, RateLimitError, NoFreshNewsError } from '../lib/rssEngine';
 
 // Snapshoty zapisujemy z metoda 'rss' (silnik w Pythonie).
 const METHOD = 'rss';
@@ -98,6 +98,7 @@ async function main() {
   );
 
   let refreshed = 0;
+  let skipped = 0;
   const failures: { boxId: string; topic: string; error: string }[] = [];
 
   for (const box of toRefresh) {
@@ -121,6 +122,13 @@ async function main() {
         console.log(`✓ "${box.topic}" - ${bullets.length} newsów`);
       }
     } catch (err) {
+      if (err instanceof NoFreshNewsError) {
+        // Temat bez świeżych wiadomości to normalny wynik, nie awaria - box zachowuje
+        // poprzedni snapshot, a workflow nie może z tego powodu świecić na czerwono.
+        skipped++;
+        console.log(`- "${box.topic}" - brak newsów z ostatnich 48h, pomijam.`);
+        continue;
+      }
       if (err instanceof RateLimitError) {
         // Wyczerpany dzienny limit Gemini - dalsze boxy i tak dostaną 429, więc przerywamy.
         failures.push({ boxId: box.id, topic: box.topic, error: 'rate limit - przerwano' });
@@ -134,7 +142,9 @@ async function main() {
   }
 
   console.log(
-    `\nPodsumowanie: odświeżono ${refreshed}/${toRefresh.length} próbowanych, błędów: ${failures.length}.`,
+    `\nPodsumowanie: odświeżono ${refreshed}/${toRefresh.length} próbowanych` +
+      (skipped > 0 ? `, bez świeżych newsów: ${skipped}` : '') +
+      `, błędów: ${failures.length}.`,
   );
 
   // Niezerowy kod wyjścia = czerwony status w GitHub Actions. Padnięcia oznaczamy jako błąd,

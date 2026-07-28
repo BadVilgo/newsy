@@ -135,7 +135,7 @@ albo `message` i serializuje obiekty, więc w UI widać przyczynę, a nie `[obje
 
 ## Testy i CI
 
-**48 testów po stronie TypeScriptu** (Vitest):
+**49 testów po stronie TypeScriptu** (Vitest):
 
 - logika serwerowa - klient silnika RSS: rozwiązywanie adresu, cache tłumaczenia, mapowanie
   błędów i wykrywanie przekierowań (`lib/rssEngine.test.ts`), mapowanie login na adres
@@ -196,6 +196,9 @@ lighthouserc.json             # progi Core Web Vitals, dostępności i SEO
 
 ## Uruchomienie lokalne
 
+Wymagany **Node 22+** (jsdom 30 i `@testing-library/jest-dom` 7, na których stoją testy
+komponentów, nie działają na Node 20) oraz Python 3.12+ do testów silnika.
+
 1. `npm install`
 2. Załóż projekt na [supabase.com](https://supabase.com), w SQL Editor uruchom
    `supabase/schema.sql`.
@@ -224,6 +227,10 @@ pętla po boxach nie mieści się w limicie 60 s funkcji serverless na Hobby. Wo
 Actions jest w UTC i nie ogarnia zmiany czasu), z dwoma ponowieniami co 20 min (03:18 / 03:38 /
 03:58 UTC). Skrypt pomija boxy, które mają już świeży snapshot, więc kolejne przebiegi ponawiają
 tylko te, które padły (dodatkowo każdy box ma jeszcze szybki retry w obrębie jednej próby).
+Temat, dla którego nie ma nic z ostatnich 48h, jest **pomijany, a nie raportowany jako błąd** -
+inaczej spokojny dzień w niszowym temacie czerwieniłby cały workflow i czerwony status przestałby
+cokolwiek znaczyć. Box zachowuje wtedy poprzedni snapshot.
+
 Ręczne "Run workflow" wymusza pełne odświeżenie. Wymaga sekretów repo (Settings -> Secrets and
 variables -> Actions): `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` oraz
 `RSS_ENGINE_URL` (adres wdrożonego silnika, np. `https://newsy-nine.vercel.app/api/rss` - runner

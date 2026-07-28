@@ -5,6 +5,7 @@ import {
   fetchRssBullets,
   translateTopic,
   RateLimitError,
+  NoFreshNewsError,
 } from '@/lib/rssEngine';
 
 const ENV_KEYS = ['RSS_ENGINE_URL', 'VERCEL_PROJECT_PRODUCTION_URL', 'VERCEL_URL', 'RSS_ENGINE_SECRET'];
@@ -125,14 +126,24 @@ describe('fetchRssBullets', () => {
     await expect(fetchRssBullets('Polska')).rejects.toBeInstanceOf(RateLimitError);
   });
 
-  it('przekazuje komunikat o braku swiezych newsow (404)', async () => {
+  // Brak newsow to normalny wynik dnia, nie awaria - osobny typ bledu pozwala codziennemu
+  // odswiezaniu pominac taki temat zamiast czerwienic caly workflow.
+  it('mapuje 404 na NoFreshNewsError z czytelnym komunikatem', async () => {
     process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
     mockFetch({
       ok: false,
       status: 404,
       json: async () => ({ detail: 'Nie znaleziono istotnych wiadomosci dla tego tematu z ostatnich 48h.' }),
     });
-    await expect(fetchRssBullets('UAP')).rejects.toThrow(/ostatnich 48h/);
+    const promise = fetchRssBullets('UAP');
+    await expect(promise).rejects.toBeInstanceOf(NoFreshNewsError);
+    await expect(promise).rejects.toThrow(/ostatnich 48h/);
+  });
+
+  it('nie myli braku newsow ze zwyklym bledem', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    mockFetch({ ok: false, status: 500, json: async () => ({ detail: 'Gemini padlo' }) });
+    await expect(fetchRssBullets('UAP')).rejects.not.toBeInstanceOf(NoFreshNewsError);
   });
 
   it('wykrywa przekierowanie (3xx) i tlumaczy przyczyne', async () => {

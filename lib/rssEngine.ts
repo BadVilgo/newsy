@@ -20,6 +20,17 @@ export function rssEngineUrl(): string {
   return 'http://localhost:3000/api/rss';
 }
 
+/**
+ * Dla tematu nie ma zadnych wiadomosci z ostatnich 48h. To NORMALNY wynik (temat niszowy,
+ * spokojny dzien), a nie awaria - codzienne odswiezanie pomija taki box zamiast raportowac blad.
+ */
+export class NoFreshNewsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NoFreshNewsError';
+  }
+}
+
 /** Blad limitu zapytan do Gemini - skrypt odswiezania przerywa wtedy dalsze boxy. */
 export class RateLimitError extends Error {
   constructor(message = 'Wyczerpano dzienny limit zapytań do Gemini (RPD). Spróbuj ponownie jutro.') {
@@ -92,6 +103,8 @@ async function callEngine<T>(payload: EnginePayload): Promise<T> {
     // 429 z silnika = limit Gemini; mapujemy na RateLimitError, zeby daily refresh
     // przerwal reszte boxow zamiast dobijac sie po kolejne 429.
     if (res.status === 429 || isRateLimitError(message)) throw new RateLimitError(message);
+    // 404 = brak swiezych newsow dla tematu. To nie awaria, tylko normalny wynik.
+    if (res.status === 404) throw new NoFreshNewsError(message);
     throw new Error(message);
   }
 
