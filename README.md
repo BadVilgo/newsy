@@ -75,6 +75,17 @@ Komunikat o braku wiadomości pojawia się dopiero, gdy nie ma dosłownie nic.
 **Tytuły źródeł zostają w oryginale.** Opis newsa jest po polsku, ale link prowadzi do artykułu z
 jego prawdziwym nagłówkiem - po przetłumaczonym tytule nikt by tego tekstu nie odnalazł.
 
+**Model ma wyłączone "myślenie" - i to była naprawa realnego błędu.** Codzienne odświeżanie co
+kilka dni wywalało się na jednym losowym temacie z komunikatem "Gemini zwrócił niepoprawny JSON".
+Gemini 2.5 Flash jest modelem rozumującym, a tokeny myślenia zjadają **ten sam budżet wyjścia co
+odpowiedź**. Pomiary na jednym temacie: od 954 do 3800 tokenów myślenia przy stale ~200 tokenach
+odpowiedzi. Gdy myślenie strzelało wysoko, odpowiedź kończyła się na `finish_reason=MAX_TOKENS`,
+czyli ucięta w połowie JSON-a - stąd błąd parsowania i pozorna losowość. Wybór 4 pozycji z gotowej
+listy nie wymaga rozumowania, więc myślenie jest wyłączone (`thinking_budget: 0`), doszedł
+`response_schema` wymuszający strukturę, jawny limit tokenów i jedno ponowienie. Efekt uboczny:
+kilkukrotnie mniejsze zużycie tokenów. Komunikat błędu niesie teraz `finish_reason` i fragment
+odpowiedzi - bez tego pierwsze wystąpienie trzeba było odtwarzać ręcznie.
+
 **Druga zakładka w kafelku nie kosztuje dodatkowego zapytania.** Każde odświeżenie zapisuje nowy
 wiersz w tabeli `snapshots`. UI pokazuje najnowszy snapshot jako "Najnowsze", a poprzedni jako
 "Poprzednie" - wczorajsze newsy same stają się dzisiejszym starszym wiadrem.
@@ -135,7 +146,7 @@ albo `message` i serializuje obiekty, więc w UI widać przyczynę, a nie `[obje
 
 ## Testy i CI
 
-**49 testów po stronie TypeScriptu** (Vitest):
+**57 testów po stronie TypeScriptu** (Vitest):
 
 - logika serwerowa - klient silnika RSS: rozwiązywanie adresu, cache tłumaczenia, mapowanie
   błędów i wykrywanie przekierowań (`lib/rssEngine.test.ts`), mapowanie login na adres
@@ -146,9 +157,10 @@ albo `message` i serializuje obiekty, więc w UI widać przyczynę, a nie `[obje
   usuwanie jest optimistic (`Dashboard.test.tsx`),
 - **axe** - audyt dostępności renderowanych komponentów, wpięty w te same testy.
 
-**19 testów po stronie Pythona** (pytest, `tests/test_rss.py`) - tam siedzi logika biznesowa
+**22 testy po stronie Pythona** (pytest, `tests/test_rss.py`) - tam siedzi logika biznesowa
 silnika: twarde odcięcie 48h, priorytet ostatnich 24h, łączenie i deduplikacja pul PL + US,
-korzystanie ze zcache'owanego tłumaczenia, budowanie punktów ze źródłem i datą.
+korzystanie ze zcache'owanego tłumaczenia, budowanie punktów ze źródłem i datą, a także
+konfiguracja modelu i ponowienie przy uciętej odpowiedzi (patrz niżej).
 
 ```
 npm test          # testy TypeScriptu (Vitest + RTL + axe)
@@ -222,11 +234,19 @@ silnika musi być poza middleware, więc bez sekretu jest publiczny, a każde wy
 zapytanie do Gemini.
 
 Codzienne odświeżanie robi GitHub Actions (`.github/workflows/refresh.yml`), a nie Vercel Cron -
-pętla po boxach nie mieści się w limicie 60 s funkcji serverless na Hobby. Workflow odpala
-`scripts/refresh.ts` o 3:18 UTC (5:18 czasu polskiego latem, 4:18 zimą - harmonogram GitHub
-Actions jest w UTC i nie ogarnia zmiany czasu), z dwoma ponowieniami co 20 min (03:18 / 03:38 /
-03:58 UTC). Skrypt pomija boxy, które mają już świeży snapshot, więc kolejne przebiegi ponawiają
-tylko te, które padły (dodatkowo każdy box ma jeszcze szybki retry w obrębie jednej próby).
+pętla po boxach nie mieści się w limicie 60 s funkcji serverless na Hobby.
+
+Newsy mają być gotowe o **8:00 czasu polskiego przez cały rok**, a harmonogram GitHub Actions
+jest w UTC i nie ogarnia zmiany czasu - jeden wpis cron trafiałby więc w 8:00 tylko przez pół
+roku. Dlatego workflow odpala się w **dwóch oknach godzinowych** (6:xx i 7:xx UTC), a o tym,
+które z nich faktycznie zrobi robotę, decyduje bramka w kodzie: `lib/schedule.ts` sprawdza
+godzinę w strefie `Europe/Warsaw` i kończy natychmiast, jeśli jest przed 8:00. Latem robotę
+wykonuje okno 6:xx, zimą 7:xx - drugie kończy się w kilka sekund. Logika jest pokryta testami
+(`lib/schedule.test.ts`) dla obu pór roku.
+
+W każdym oknie są 3 próby co 20 min. Skrypt pomija boxy, które mają już świeży snapshot, więc
+kolejne przebiegi ponawiają tylko te, które padły (dodatkowo każdy box ma jeszcze szybki retry
+w obrębie jednej próby).
 Temat, dla którego nie ma nic z ostatnich 48h, jest **pomijany, a nie raportowany jako błąd** -
 inaczej spokojny dzień w niszowym temacie czerwieniłby cały workflow i czerwony status przestałby
 cokolwiek znaczyć. Box zachowuje wtedy poprzedni snapshot.

@@ -61,6 +61,24 @@ SEARCH_WINDOWS = ["when:1d", "when:2d"]
 GEMINI_MODEL = "gemini-2.5-flash"
 # Tlumaczenie tematu to zadanie trywialne - mozna tu podstawic tanszy model.
 TRANSLATE_MODEL = GEMINI_MODEL
+# Wymuszony ksztalt odpowiedzi. Sam response_mime_type to tylko prosba o JSON;
+# schemat gwarantuje strukture i eliminuje "kreatywne" formaty.
+SELECTION_SCHEMA = {
+    "type": "ARRAY",
+    "items": {
+        "type": "OBJECT",
+        "properties": {
+            "index": {"type": "INTEGER"},
+            "summary": {"type": "STRING"},
+        },
+        "required": ["index", "summary"],
+    },
+}
+# Odpowiedz to ~200-300 tokenow, wiec limit z duzym zapasem - ucieciu ma zapobiegac
+# takze wylaczone myslenie (patrz komentarz przy thinking_config nizej).
+MAX_OUTPUT_TOKENS = 2048
+# Ile razy probujemy, gdy model mimo wszystko odda cos, czego nie da sie sparsowac.
+SELECTION_ATTEMPTS = 2
 # feedparser bez naglowka User-Agent bywa odrzucany - podszywamy sie pod przegladarke.
 USER_AGENT = "Mozilla/5.0 (compatible; newsy.live/1.0; +https://newsy-nine.vercel.app)"
 # Parametry lokalizacji Google News.
@@ -184,7 +202,12 @@ def translate_topic(topic: str) -> str:
         f"Temat: {topic}"
     )
     try:
-        response = get_client().models.generate_content(model=TRANSLATE_MODEL, contents=prompt)
+        response = get_client().models.generate_content(
+            model=TRANSLATE_MODEL,
+            contents=prompt,
+            # Tlumaczenie 2-4 slow tez nie wymaga myslenia - patrz komentarz w select_and_summarize.
+            config={"thinking_config": {"thinking_budget": 0}, "max_output_tokens": 64},
+        )
         first_line = (response.text or "").strip().splitlines()[0]
         cleaned = first_line.strip().strip('"').strip("'").strip()
         return cleaned or topic
@@ -245,17 +268,43 @@ def select_and_summarize(topic: str, items: list[dict]) -> list[dict]:
         "bez zadnego dodatkowego tekstu."
     )
 
-    response = get_client().models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt,
-        config={"response_mime_type": "application/json"},
-    )
+    parsed = None
+    last_finish = None
+    last_raw = ""
+    for _ in range(SELECTION_ATTEMPTS):
+        response = get_client().models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": SELECTION_SCHEMA,
+                # Gemini 2.5 Flash domyslnie "mysli", a tokeny myslenia zjadaja TEN SAM
+                # budzet wyjscia co odpowiedz. Pomiary: 950-3800 tokenow myslenia przy
+                # ~200 tokenach odpowiedzi - przy skoku w gore JSON bywal ucinany
+                # (finish_reason=MAX_TOKENS) i parsowanie legalo. Do wyboru 4 pozycji
+                # z gotowej listy myslenie nie jest potrzebne, a bez niego jest taniej.
+                "thinking_config": {"thinking_budget": 0},
+                "max_output_tokens": MAX_OUTPUT_TOKENS,
+            },
+        )
+        candidate = (response.candidates or [None])[0]
+        last_finish = getattr(candidate, "finish_reason", None)
+        last_raw = (response.text or "").strip()
+        try:
+            parsed = json.loads(last_raw)
+            break
+        except json.JSONDecodeError:
+            continue
 
-    raw = (response.text or "").strip()
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail="Gemini zwrocil niepoprawny JSON.")
+    if parsed is None:
+        # Diagnostyka w tresci bledu - bez niej takie padniecie jest nie do odtworzenia z logow.
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Gemini nie zwrocil poprawnego JSON po {SELECTION_ATTEMPTS} probach "
+                f"(finish_reason={last_finish}, dlugosc={len(last_raw)}): {last_raw[:200]}"
+            ),
+        )
 
     bullets: list[dict] = []
     seen: set[int] = set()

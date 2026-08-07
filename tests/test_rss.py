@@ -157,17 +157,28 @@ class TestFetchRssItems:
 
 
 class FakeResponse:
-    def __init__(self, text):
+    def __init__(self, text, finish_reason="STOP"):
         self.text = text
+        self.candidates = [type("C", (), {"finish_reason": finish_reason})()]
 
 
-def fake_client(payload):
-    class Models:
-        def generate_content(self, **_):
-            return FakeResponse(json.dumps(payload))
+class FakeModels:
+    """Oddaje kolejne przygotowane odpowiedzi; zapamietuje uzyte konfiguracje."""
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.configs = []
+
+    def generate_content(self, **kwargs):
+        self.configs.append(kwargs.get("config", {}))
+        return self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
+
+
+def fake_client(payload, *, raw_responses=None):
+    responses = raw_responses or [FakeResponse(json.dumps(payload))]
 
     class Client:
-        models = Models()
+        models = FakeModels(responses)
 
     return Client()
 
@@ -212,6 +223,42 @@ class TestSelectAndSummarize:
         with pytest.raises(HTTPException) as exc:
             rss.select_and_summarize("temat", [item("https://a", 1)])
         assert exc.value.status_code == 502
+
+    # Regresja: tokeny "myslenia" Gemini 2.5 Flash zjadaja budzet wyjscia, przez co
+    # odpowiedz bywala ucinana w polowie JSON-a (finish_reason=MAX_TOKENS).
+    def test_wylacza_myslenie_i_wymusza_schemat(self, monkeypatch):
+        client = fake_client([{"index": 0, "summary": "ok"}])
+        monkeypatch.setattr(rss, "get_client", lambda: client)
+
+        rss.select_and_summarize("temat", [item("https://a", 1)])
+
+        config = client.models.configs[0]
+        assert config["thinking_config"]["thinking_budget"] == 0
+        assert config["response_schema"] == rss.SELECTION_SCHEMA
+        assert config["max_output_tokens"] == rss.MAX_OUTPUT_TOKENS
+
+    def test_ponawia_gdy_pierwsza_odpowiedz_jest_ucieta(self, monkeypatch):
+        ucieta = FakeResponse('[{"index": 0, "sum', finish_reason="MAX_TOKENS")
+        poprawna = FakeResponse(json.dumps([{"index": 0, "summary": "udalo sie za drugim razem"}]))
+        client = fake_client(None, raw_responses=[ucieta, poprawna])
+        monkeypatch.setattr(rss, "get_client", lambda: client)
+
+        bullety = rss.select_and_summarize("temat", [item("https://a", 1)])
+
+        assert [b["text"] for b in bullety] == ["udalo sie za drugim razem"]
+        assert len(client.models.configs) == 2
+
+    def test_blad_zawiera_diagnostyke_gdy_json_nie_parsuje(self, monkeypatch):
+        ucieta = FakeResponse('[{"index": 0, "sum', finish_reason="MAX_TOKENS")
+        client = fake_client(None, raw_responses=[ucieta, ucieta])
+        monkeypatch.setattr(rss, "get_client", lambda: client)
+
+        with pytest.raises(HTTPException) as exc:
+            rss.select_and_summarize("temat", [item("https://a", 1)])
+
+        assert exc.value.status_code == 502
+        # Bez finish_reason w komunikacie takie padniecie jest nie do odtworzenia z logow.
+        assert "MAX_TOKENS" in exc.value.detail
 
 
 class TestRun:

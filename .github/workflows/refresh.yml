@@ -4,12 +4,16 @@ name: Daily refresh
 # nie na Vercelu - dzięki temu nie obowiązuje limit 60 s funkcji serverless.
 on:
   schedule:
-    # 3 próby co 20 min (03:18 / 03:38 / 03:58 UTC). Skrypt pomija boxy już świeże,
-    # więc kolejne przebiegi ponawiają tylko te, które padły (np. na 503 od Gemini).
-    # UWAGA: GitHub Actions używa strefy UTC i nie ogarnia czasu letniego/zimowego.
-    # 03:18 UTC = 05:18 PL latem (CEST), 04:18 PL zimą (CET).
-    # Minuta :18 (nie :00) celowo - omija tłok schedulera GitHuba na pełnej godzinie.
-    - cron: '18,38,58 3 * * *'
+    # Cel: newsy gotowe o 8:00 CZASU POLSKIEGO przez cały rok.
+    # GitHub Actions liczy harmonogram w UTC i nie ogarnia zmiany czasu, więc jeden wpis
+    # trafiałby w 8:00 tylko przez pół roku. Dlatego odpalamy DWA okna godzinowe:
+    #   6:xx UTC = 8:xx PL latem (CEST), 7:xx UTC = 8:xx PL zimą (CET),
+    # a scripts/refresh.ts sam sprawdza godzinę w strefie Europe/Warsaw i kończy od razu,
+    # jeśli jest przed 8:00. Dzięki temu okno "nie tej pory roku" nic nie robi.
+    # W każdym oknie 3 próby co 20 min - skrypt pomija boxy już świeże, więc kolejne
+    # przebiegi ponawiają tylko te, które padły (np. na 503 od Gemini).
+    # Minuta :08 (nie :00) celowo - omija tłok schedulera GitHuba na pełnej godzinie.
+    - cron: '8,28,48 6,7 * * *'
   workflow_dispatch: {} # przycisk "Run workflow" do ręcznego odpalenia/testów (wymusza pełne odświeżenie)
 
 # Gdyby przebieg się przeciągał, nie pozwól mu wisieć w nieskończoność.

@@ -4,19 +4,26 @@
  * mieści się spokojnie (w przeciwieństwie do funkcji serverless na planie Hobby).
  *
  * Retry „co 20 min, do 3 prób" jest realizowany PRZEZ HARMONOGRAM, nie przez usypianie
- * runnera: workflow odpala się 3x co 20 min (0,20,40 * ...), a ten skrypt pomija boxy,
- * które mają już świeży snapshot (< FRESH_WINDOW_MS). Dzięki temu kolejne przebiegi
- * ponawiają tylko te boxy, które wcześniej padły (np. na 503 od Gemini). Gdy wszystkie
- * są gotowe, kolejny przebieg kończy się natychmiast.
+ * runnera: workflow odpala się 3x co 20 min, a ten skrypt pomija boxy, które mają już
+ * świeży snapshot (< FRESH_WINDOW_MS). Dzięki temu kolejne przebiegi ponawiają tylko te
+ * boxy, które wcześniej padły (np. na 503 od Gemini). Gdy wszystkie są gotowe, kolejny
+ * przebieg kończy się natychmiast.
+ *
+ * Start o 8:00 CZASU POLSKIEGO przez cały rok, mimo że GitHub Actions liczy harmonogram
+ * w UTC i nie ogarnia zmiany czasu. Sztuczka: workflow odpala się w DWÓCH oknach godzinowych
+ * (6:xx i 7:xx UTC), a ten skrypt sam sprawdza godzinę w strefie Europe/Warsaw i kończy
+ * natychmiast, jeśli jest jeszcze przed 8:00. Latem (CEST) robotę wykonuje okno 6:xx UTC,
+ * zimą (CET) okno 7:xx UTC - w obu przypadkach o 8:0x lokalnie.
  *
  * Ręczne uruchomienie (workflow_dispatch) ustawia FORCE_REFRESH=true i odświeża wszystko
- * niezależnie od świeżości - wygodne do testów.
+ * niezależnie od świeżości i pory dnia - wygodne do testów.
  *
  * Uruchomienie lokalne:
  *   npx tsx --env-file=.env.local scripts/refresh.ts
  */
 import { createAdminClient } from '../lib/supabase/admin';
 import { fetchRssBullets, RateLimitError, NoFreshNewsError } from '../lib/rssEngine';
+import { START_HOUR_PL, isBeforeStartHour, warsawHour } from '../lib/schedule';
 
 // Snapshoty zapisujemy z metoda 'rss' (silnik w Pythonie).
 const METHOD = 'rss';
@@ -26,6 +33,7 @@ type RefreshResult = { bullets: Awaited<ReturnType<typeof fetchRssBullets>>['bul
 // Box uznajemy za „świeży" (do pominięcia), jeśli ma snapshot z ostatnich 3 godzin.
 // Okno musi być wyraźnie większe niż rozjazd prób (40 min), a wyraźnie mniejsze niż doba.
 const FRESH_WINDOW_MS = 3 * 60 * 60 * 1000;
+
 
 // Szybki retry w obrębie jednej próby dla PRZEJŚCIOWYCH błędów Gemini (503/overload).
 // To krótkie przeciążenia po stronie Google, więc zwykle wystarczy ponowić po kilkunastu
@@ -66,6 +74,16 @@ async function refreshWithRetry(topic: string, topicEn: string | null): Promise<
 
 async function main() {
   const force = process.env.FORCE_REFRESH === 'true';
+
+  // Bramka czasu lokalnego: to ona (a nie sam cron) decyduje, że newsy pojawiają się
+  // o 8:00 polskiego czasu niezależnie od tego, czy trwa czas letni, czy zimowy.
+  if (!force && isBeforeStartHour()) {
+    console.log(
+      `Jest ${warsawHour()}:xx czasu polskiego, a odświeżanie startuje o ${START_HOUR_PL}:00 - kończę bez zmian.`,
+    );
+    return;
+  }
+
   const supabase = createAdminClient();
 
   const { data: boxes, error } = await supabase.from('boxes').select('id, topic, topic_en');
