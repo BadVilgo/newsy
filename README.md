@@ -48,7 +48,7 @@ drożej niż wymiana samych tokenów. Wersja na RSS daje deterministyczną pulę
 grosze miesięcznie. W historii repo widać obie.
 
 **Selekcja to jedno wywołanie Gemini, nie trzy.** Model dostaje do 30 pozycji (nagłówek, opis,
-źródło, data), wybiera 4 najważniejsze i od razu pisze do nich własne polskie opisy. Osobny krok
+źródło, data), wybiera do 4 najważniejszych i od razu pisze do nich własne polskie opisy. Osobny krok
 tłumaczenia byłby zbędny, bo model jest wielojęzyczny i angielskie nagłówki streszcza po polsku
 w tym samym przebiegu - a tłumaczenie tłumaczenia tylko psułoby język.
 

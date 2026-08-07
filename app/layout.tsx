@@ -4,7 +4,7 @@ import './globals.css';
 
 const SITE_URL = 'https://newsy-nine.vercel.app';
 const DESCRIPTION =
-  'Dashboard, który dla wybranych tematów zbiera przez AI najważniejsze wiadomości z ostatnich 24 i 48 godzin - z linkami do źródeł, odświeżane codziennie rano.';
+  'Dashboard, który dla wybranych tematów wybiera przez AI najważniejsze wiadomości z ostatnich 48 godzin - z własnymi opisami po polsku i linkami do źródeł, odświeżane codziennie o 8:00.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -14,7 +14,18 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   applicationName: 'newsy.live',
-  keywords: ['newsy', 'dashboard newsów', 'agregator wiadomości', 'AI', 'Gemini', 'Next.js', 'Supabase'],
+  keywords: [
+    'newsy',
+    'dashboard newsów',
+    'agregator wiadomości',
+    'AI',
+    'Gemini',
+    'Google News RSS',
+    'Next.js',
+    'Supabase',
+    'Python',
+    'FastAPI',
+  ],
   alternates: { canonical: '/' },
   openGraph: {
     type: 'website',

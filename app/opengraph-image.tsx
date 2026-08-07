@@ -31,10 +31,10 @@ export default function OpengraphImage() {
           <span style={{ fontSize: 120, fontWeight: 700, color: '#3fb6a8' }}>.live</span>
         </div>
         <div style={{ fontSize: 40, color: '#9aa3b8', marginTop: 12 }}>
-          The news that matters, refreshed every morning.
+          The news that matters, refreshed daily at 8:00.
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 44 }}>
-          {['24h', '48h', 'AI-curated'].map((t) => (
+          {['last 48h', 'PL + US', 'AI-curated'].map((t) => (
             <div
               key={t}
               style={{

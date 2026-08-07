@@ -19,23 +19,24 @@ export default function AboutPage() {
         <h1 className="prose-title">Twój poranny briefing zamiast dziesięciu otwartych kart</h1>
         <p className="prose-lead">
           newsy.live to osobista tablica wiadomości. Wpisujesz tematy, które Cię obchodzą, a
-          aplikacja każdego ranka podaje Ci ich esencję - <strong>tylko to, co naprawdę ważne</strong>,
-          wybrane przez sztuczną inteligencję i podane z linkami do źródeł.
+          aplikacja codziennie o 8:00 podaje Ci ich esencję -{' '}
+          <strong>tylko to, co naprawdę ważne</strong>, wybrane przez sztuczną inteligencję i
+          podane z linkami do źródeł.
         </p>
 
         <h2 className="prose-h2">Co możesz zrobić</h2>
         <ul className="prose-list">
           <li>
             <strong>Zbudować własną tablicę tematów</strong> - dodaj tyle tematów, ile chcesz,
-            i ułóż je w wygodnej kolejności.
+            i ułóż je w wygodnej kolejności strzałkami lub przeciąganiem.
           </li>
           <li>
-            <strong>Dostać gotową selekcję</strong> - zamiast przewijać portale, widzisz 4
-            najważniejsze newsy na każdy temat.
+            <strong>Dostać gotową selekcję</strong> - zamiast przewijać portale, widzisz do
+            czterech najważniejszych newsów na każdy temat.
           </li>
           <li>
-            <strong>Śledzić rozwój wydarzeń</strong> - przełączasz się między „ostatnie 24h" a
-            „dzień wcześniej" i od razu widzisz, co się zmieniło.
+            <strong>Śledzić rozwój wydarzeń</strong> - przełączasz się między „Najnowsze" a
+            „Poprzednie" i od razu widzisz, co doszło od ostatniego odświeżenia.
           </li>
           <li>
             <strong>Dotrzeć do źródła</strong> - każdy news ma odnośniki do oryginalnych
@@ -59,8 +60,9 @@ export default function AboutPage() {
           <li>
             <span className="step-num">2</span>
             <div>
-              <strong>AI zbiera i selekcjonuje.</strong> Aplikacja pobiera kilkadziesiąt
-              doniesień i wybiera 4 najważniejsze, odrzucając clickbait i powtórki.
+              <strong>AI zbiera i selekcjonuje.</strong> Aplikacja pobiera do trzydziestu
+              doniesień i wybiera z nich do czterech najważniejszych, odrzucając clickbait
+              i powtórki.
             </div>
           </li>
           <li>
@@ -88,8 +90,8 @@ export default function AboutPage() {
           Wiadomości pochodzą z Google News RSS, a przetwarza je osobny silnik napisany w{' '}
           <strong>Pythonie (FastAPI)</strong>: zbiera do 30 newsów na temat, odsiewa wszystko
           starsze niż 48 godzin i jednym zapytaniem do Gemini wybiera najważniejsze pozycje oraz
-          pisze do nich własne, polskie opisy. Resztą - kontami, bazą i codziennym odświeżaniem -
-          zajmuje się aplikacja Next.js.
+          pisze do nich własne, polskie opisy. Resztą - kontami, bazą i codziennym odświeżaniem
+          o 8:00 - zajmuje się aplikacja Next.js.
         </p>
 
         <div className="hero-actions">

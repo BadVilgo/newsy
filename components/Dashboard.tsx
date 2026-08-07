@@ -10,7 +10,7 @@ import EmptyState from './EmptyState';
 import Nav from './Nav';
 
 const PAGE_NOTE =
-  'Do 30 newsów z Google News RSS na temat, z których Gemini wybiera 4 najważniejsze i pisze własne opisy po polsku. Tylko wiadomości z ostatnich 48h, z priorytetem dla ostatniej doby.';
+  'Do 30 newsów z Google News RSS na temat, z których Gemini wybiera do 4 najważniejszych i pisze własne opisy po polsku. Tylko wiadomości z ostatnich 48h, z priorytetem dla ostatniej doby.';
 
 const BOXES_KEY = ['boxes'] as const;
 
@@ -192,7 +192,7 @@ export default function Dashboard() {
 
           <div className="footer-note">
             <span className="pulse-dot" />
-            auto-odświeżanie codziennie rano
+            auto-odświeżanie codziennie o 8:00
           </div>
         </>
       )}
