@@ -1008,3 +1008,99 @@ button:focus-visible,
   color: var(--text-muted);
   font-family: ui-monospace, monospace;
 }
+
+/* ===== Usuwanie boxa: wyróżniony przycisk + modal potwierdzenia ===== */
+.icon-btn-danger:hover {
+  color: var(--danger);
+}
+
+.btn-danger {
+  background: rgba(226, 85, 79, 0.16);
+  border-color: #e2554f;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.btn-danger:hover {
+  background: #e2554f;
+  color: #fff;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(5, 8, 14, 0.7);
+}
+
+.modal {
+  width: 100%;
+  max-width: 400px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.modal-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-message {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.modal-message strong {
+  color: var(--text);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Mobilka: większe ikony i pola dotyku (~40px), a kosz odsunięty od reszty,
+   żeby nie trafiać w niego przypadkiem. */
+@media (max-width: 640px) {
+  .card-head {
+    flex-wrap: wrap;
+  }
+
+  .card-actions {
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .card-actions .icon-btn {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 8px;
+  }
+
+  .card-actions .icon-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .card-actions .icon-btn-danger {
+    margin-left: 14px;
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+}

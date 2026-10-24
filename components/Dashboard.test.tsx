@@ -98,6 +98,7 @@ describe('Dashboard', () => {
 
     await screen.findByRole('heading', { name: 'UAP' });
     await user.click(screen.getByRole('button', { name: /Usuń temat "UAP"/ }));
+    await user.click(screen.getByRole('button', { name: 'Usuń' }));
 
     await waitFor(() =>
       expect(screen.queryByRole('heading', { name: 'UAP' })).not.toBeInTheDocument(),

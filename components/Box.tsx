@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Box as BoxType } from '@/lib/types';
 import NewsSection from './NewsSection';
+import ConfirmDialog from './ConfirmDialog';
 import {
   EditIcon,
   RefreshIcon,
@@ -46,6 +47,7 @@ export default function BoxCard({
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'recent' | 'previous'>('recent');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const recent = box.snapshots[0];
   const previous = box.snapshots[1];
@@ -133,14 +135,32 @@ export default function BoxCard({
             {refreshing ? <span className="spinner" /> : <RefreshIcon />}
           </button>
           <button
-            className="icon-btn"
-            onClick={() => onDelete(box.id)}
+            className="icon-btn icon-btn-danger"
+            onClick={() => setConfirmingDelete(true)}
             aria-label={`Usuń temat "${box.topic}"`}
           >
             <TrashIcon />
           </button>
         </div>
       </div>
+
+      {confirmingDelete && (
+        <ConfirmDialog
+          title="Usunąć temat?"
+          message={
+            <>
+              Czy na pewno chcesz usunąć temat <strong>„{box.topic}”</strong> razem z jego
+              newsami? Tej operacji nie można cofnąć.
+            </>
+          }
+          confirmLabel="Usuń"
+          onConfirm={() => {
+            setConfirmingDelete(false);
+            onDelete(box.id);
+          }}
+          onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
 
       {recent && (
         <p className="timestamp">
