@@ -21,6 +21,11 @@ concurrency:
   group: daily-refresh
   cancel-in-progress: false
 
+# actions: write - potrzebne do kroku "keepalive" na końcu (ponowne włączenie workflowu przez API).
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
@@ -46,3 +51,12 @@ jobs:
           RSS_ENGINE_URL: ${{ secrets.RSS_ENGINE_URL }}
           # Ręczne uruchomienie odświeża wszystko; harmonogram tylko boxy nieświeże.
           FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' }}
+
+      # GitHub sam wyłącza zaplanowane workflowy po 60 dniach bez commitów w repo
+      # (stan "disabled_inactivity") - tak padło odświeżanie 7.10.2026.
+      # Wywołanie "enable" na włączonym workflowie resetuje ten licznik, bez pustych commitów.
+      - name: Keepalive (chroni harmonogram przed auto-wyłączeniem)
+        if: always()
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/refresh.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
