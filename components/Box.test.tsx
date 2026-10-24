@@ -104,4 +104,34 @@ describe('BoxCard', () => {
     const { container } = renderBox();
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('przed usunięciem pyta o potwierdzenie z nazwą tematu', async () => {
+    const user = userEvent.setup();
+    const { props } = renderBox();
+
+    await user.click(screen.getByRole('button', { name: 'Usuń temat "UAP"' }));
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Usunąć temat?' });
+    expect(dialog).toHaveTextContent('„UAP”');
+    expect(props.onDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Anuluj' })).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Usuń' }));
+    expect(props.onDelete).toHaveBeenCalledWith('box-1');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('Anuluj i Escape zamykają okno bez usuwania', async () => {
+    const user = userEvent.setup();
+    const { props } = renderBox();
+
+    await user.click(screen.getByRole('button', { name: 'Usuń temat "UAP"' }));
+    await user.click(screen.getByRole('button', { name: 'Anuluj' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Usuń temat "UAP"' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(props.onDelete).not.toHaveBeenCalled();
+  });
 });
