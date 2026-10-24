@@ -14,12 +14,25 @@ on:
     # przebiegi ponawiają tylko te, które padły (np. na 503 od Gemini).
     # Minuta :08 (nie :00) celowo - omija tłok schedulera GitHuba na pełnej godzinie.
     - cron: '8,28,48 6,7 * * *'
-  workflow_dispatch: {} # przycisk "Run workflow" do ręcznego odpalenia/testów (wymusza pełne odświeżenie)
+  # Przycisk "Run workflow" (ręcznie / testy) oraz punktualny zewnętrzny cron (cron-job.org, 8:05 PL).
+  # Harmonogram GitHuba potrafi spóźnić się o kilka godzin, więc to on jest głównym wyzwalaczem,
+  # a 'schedule' powyżej zostaje jako zapas. Zewnętrzny cron wysyła force=false (tylko boxy nieświeże).
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Pełne odświeżenie (także boxy już świeże)'
+        type: boolean
+        default: true
 
 # Gdyby przebieg się przeciągał, nie pozwól mu wisieć w nieskończoność.
 concurrency:
   group: daily-refresh
   cancel-in-progress: false
+
+# actions: write - potrzebne do kroku "keepalive" na końcu (ponowne włączenie workflowu przez API).
+permissions:
+  contents: read
+  actions: write
 
 jobs:
   refresh:
@@ -44,5 +57,14 @@ jobs:
           # Adres silnika RSS (Python/FastAPI na Vercelu), np. https://<deploy>.vercel.app/api/rss.
           # Na runnerze GitHuba nie ma VERCEL_URL, więc metodę 'rss' kierujemy tutaj.
           RSS_ENGINE_URL: ${{ secrets.RSS_ENGINE_URL }}
-          # Ręczne uruchomienie odświeża wszystko; harmonogram tylko boxy nieświeże.
-          FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' }}
+          # Ręczne uruchomienie odświeża wszystko; harmonogram i zewnętrzny cron (force=false) tylko boxy nieświeże.
+          FORCE_REFRESH: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.force) != 'false' }}
+
+      # GitHub sam wyłącza zaplanowane workflowy po 60 dniach bez commitów w repo
+      # (stan "disabled_inactivity") - tak padło odświeżanie 7.10.2026.
+      # Wywołanie "enable" na włączonym workflowie resetuje ten licznik, bez pustych commitów.
+      - name: Keepalive (chroni harmonogram przed auto-wyłączeniem)
+        if: always()
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/refresh.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
