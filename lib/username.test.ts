@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { usernameToEmail, emailToUsername, isValidUsername } from '@/lib/username';
+import {
+  usernameToEmail,
+  emailToUsername,
+  isValidUsername,
+  USERNAME_PATTERN,
+} from '@/lib/username';
 
 describe('isValidUsername', () => {
   it('akceptuje poprawne loginy', () => {
@@ -12,6 +17,24 @@ describe('isValidUsername', () => {
     expect(isValidUsername('a'.repeat(31))).toBe(false);
     expect(isValidUsername('zła spacja')).toBe(false);
     expect(isValidUsername('user@x')).toBe(false);
+  });
+});
+
+// Regresja: przeglądarki kompilują atrybut `pattern` z flagą `v`, w której nieucieczony
+// myślnik w klasie znaków jest błędem składni. Chrome wypisywał wtedy błąd w konsoli
+// i po cichu wyłączał walidację pola logowania.
+describe('USERNAME_PATTERN (atrybut pattern pola logowania)', () => {
+  const asBrowser = () => new RegExp(`^(?:${USERNAME_PATTERN})$`, 'v');
+
+  it('kompiluje się tak, jak robi to przeglądarka (flaga v)', () => {
+    expect(asBrowser).not.toThrow();
+  });
+
+  it('akceptuje i odrzuca te same loginy co walidacja w kodzie', () => {
+    const pattern = asBrowser();
+    for (const login of ['test-user', 'adam_g.91', 'ab', 'zła spacja', 'user@x', 'a'.repeat(31)]) {
+      expect(pattern.test(login)).toBe(isValidUsername(login));
+    }
   });
 });
 

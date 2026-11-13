@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 // Trasy dostępne bez logowania (wizytówka projektu). Reszta wymaga sesji.
-const PUBLIC_PAGES = new Set(['/', '/o-aplikacji', '/kontakt']);
+const PUBLIC_PAGES = new Set(['/', '/demo', '/o-aplikacji', '/kontakt']);
 
 export async function middleware(request: NextRequest) {
   // Strony wizytówkowe przepuszczamy od razu, BEZ odpytywania Supabase. Nie potrzebują

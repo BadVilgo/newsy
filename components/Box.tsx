@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import type { Box as BoxType } from '@/lib/types';
-import NewsSection from './NewsSection';
+import { accentFor } from '@/lib/accent';
+import BoxNews from './BoxNews';
 import ConfirmDialog from './ConfirmDialog';
 import {
   EditIcon,
@@ -14,14 +15,6 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
 } from './icons';
-
-const ACCENTS = ['#3fb6a8', '#e2554f', '#5aa9f0', '#e0a83f', '#9b8cff', '#4fbf7b'];
-
-function accentFor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return ACCENTS[hash % ACCENTS.length];
-}
 
 export default function BoxCard({
   box,
@@ -46,11 +39,8 @@ export default function BoxCard({
   const [draft, setDraft] = useState(box.topic);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'recent' | 'previous'>('recent');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const recent = box.snapshots[0];
-  const previous = box.snapshots[1];
   const isRateLimit = /limit/i.test(error);
 
   async function handleRefresh() {
@@ -68,7 +58,10 @@ export default function BoxCard({
   }
 
   return (
-    <div className="card" style={{ ['--card-accent' as string]: accentFor(box.id) }}>
+    <div
+      className={`card${refreshing ? ' card-refreshing' : ''}`}
+      style={{ ['--card-accent' as string]: accentFor(box.id) }}
+    >
       <div className="card-head">
         {editing ? (
           <input
@@ -162,50 +155,16 @@ export default function BoxCard({
         />
       )}
 
-      {recent && (
-        <p className="timestamp">
-          {new Date(recent.fetched_at).toLocaleString('pl-PL', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </p>
-      )}
-
-      {error && (
-        <div className={`banner ${isRateLimit ? 'banner-warning' : 'banner-error'}`} role="alert">
-          <AlertIcon />
-          {/* Pokazujemy prawdziwy komunikat z serwera - odróżnia limit aplikacji (X/dobę)
-              od realnego limitu zapytań Gemini. isRateLimit steruje tylko kolorem banera. */}
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="tabs" role="tablist" aria-label="Zakres czasu">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'recent'}
-          className={`tab${activeTab === 'recent' ? ' tab-active' : ''}`}
-          onClick={() => setActiveTab('recent')}
-        >
-          Najnowsze
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'previous'}
-          className={`tab${activeTab === 'previous' ? ' tab-active' : ''}`}
-          onClick={() => setActiveTab('previous')}
-        >
-          Poprzednie
-        </button>
-      </div>
-
-      <div role="tabpanel" aria-label={activeTab === 'recent' ? 'Najnowsze' : 'Poprzednie'}>
-        <NewsSection snapshot={activeTab === 'recent' ? recent : previous} />
-      </div>
+      <BoxNews snapshots={box.snapshots} refreshing={refreshing}>
+        {error && (
+          <div className={`banner ${isRateLimit ? 'banner-warning' : 'banner-error'}`} role="alert">
+            <AlertIcon />
+            {/* Pokazujemy prawdziwy komunikat z serwera - odróżnia limit aplikacji (X/dobę)
+                od realnego limitu zapytań Gemini. isRateLimit steruje tylko kolorem banera. */}
+            <span>{error}</span>
+          </div>
+        )}
+      </BoxNews>
     </div>
   );
 }

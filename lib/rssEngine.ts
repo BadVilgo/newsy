@@ -66,7 +66,24 @@ export function describeError(
   return `Silnik RSS zwrocil status ${status}.`;
 }
 
-type EnginePayload = { topic: string; topic_en?: string | null; translate_only?: boolean };
+/** News pokazany w poprzednim snapshocie - "pamiec" silnika miedzy odswiezeniami. */
+export type PreviousItem = { text: string; urls: string[] };
+
+/**
+ * Kontekst poprzedniego odswiezenia boxa:
+ *  - `previous` - newsy, ktore uzytkownik juz widzial (silnik ich nie powtarza),
+ *  - `since`    - czas najnowszego snapshotu; gdy podany, a od tego momentu nie doszlo nic
+ *                 nowego, silnik konczy bez wolania Gemini i zwraca `unchanged`.
+ */
+export type EngineMemory = { previous?: PreviousItem[]; since?: string | null };
+
+type EnginePayload = {
+  topic: string;
+  topic_en?: string | null;
+  translate_only?: boolean;
+  previous?: PreviousItem[];
+  since?: string | null;
+};
 
 async function callEngine<T>(payload: EnginePayload): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -115,16 +132,30 @@ async function callEngine<T>(payload: EnginePayload): Promise<T> {
  * Pobiera newsy dla tematu. `topicEn` to zcache'owane angielskie haslo (kolumna
  * boxes.topic_en) - gdy go brak, a silnik musi siegnac po wydanie US, policzy tlumaczenie
  * sam i zwroci je w `topicEn`, zebysmy mogli je zapisac na przyszlosc.
+ *
+ * `unchanged: true` oznacza, ze od poprzedniego snapshotu nie pojawilo sie nic nowego -
+ * silnik nie wolal modelu, a wolajacy powinien zostawic dotychczasowy snapshot.
  */
 export async function fetchRssBullets(
   topic: string,
   topicEn?: string | null,
-): Promise<{ bullets: Bullet[]; topicEn: string | null }> {
-  const data = await callEngine<{ bullets?: Bullet[]; topic_en?: string | null }>({
+  memory: EngineMemory = {},
+): Promise<{ bullets: Bullet[]; topicEn: string | null; unchanged: boolean }> {
+  const data = await callEngine<{
+    bullets?: Bullet[];
+    topic_en?: string | null;
+    unchanged?: boolean;
+  }>({
     topic,
     topic_en: topicEn ?? null,
+    ...(memory.previous?.length ? { previous: memory.previous } : {}),
+    ...(memory.since ? { since: memory.since } : {}),
   });
-  return { bullets: data.bullets ?? [], topicEn: data.topic_en ?? null };
+  return {
+    bullets: data.bullets ?? [],
+    topicEn: data.topic_en ?? null,
+    unchanged: data.unchanged === true,
+  };
 }
 
 /** Liczy angielskie haslo wyszukiwania dla tematu (raz, przy dodaniu/edycji boxa). */

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { fetchRssBullets, RateLimitError, NoFreshNewsError } from '@/lib/rssEngine';
+import { RateLimitError, NoFreshNewsError } from '@/lib/rssEngine';
+import { refreshBoxNews } from '@/lib/refreshBox';
+import { loadInactiveUserIds } from '@/lib/activeUsers';
 
 export const maxDuration = 60;
 
@@ -11,27 +13,25 @@ export async function GET(request: Request) {
   }
 
   const supabase = createAdminClient();
-  const { data: boxes, error } = await supabase.from('boxes').select('id, topic, topic_en');
+  const { data: boxes, error } = await supabase
+    .from('boxes')
+    .select('id, topic, topic_en, user_id');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Kont, na które nikt nie zagląda od tygodnia, nie odświeżamy (patrz lib/activeUsers.ts).
+  const inactiveUsers = await loadInactiveUserIds(supabase);
+  const activeBoxes = (boxes ?? []).filter((box) => !inactiveUsers.has(box.user_id));
+
   let refreshed = 0;
+  let unchanged = 0;
   let skipped = 0;
   const failures: { boxId: string; error: string }[] = [];
 
-  for (const box of boxes ?? []) {
+  for (const box of activeBoxes) {
     try {
-      const { bullets, topicEn } = await fetchRssBullets(box.topic, box.topic_en);
-      if (topicEn && topicEn !== box.topic_en) {
-        await supabase.from('boxes').update({ topic_en: topicEn }).eq('id', box.id);
-      }
-      const { error: insertError } = await supabase
-        .from('snapshots')
-        .insert({ box_id: box.id, items: bullets, method: 'rss' });
-      if (insertError) {
-        failures.push({ boxId: box.id, error: insertError.message });
-      } else {
-        refreshed++;
-      }
+      const outcome = await refreshBoxNews(supabase, box, { skipIfUnchanged: true });
+      if (outcome.status === 'unchanged') unchanged++;
+      else refreshed++;
     } catch (err) {
       // Brak świeżych newsów to normalny wynik, nie awaria - nie raportujemy go jako błąd.
       if (err instanceof NoFreshNewsError) {
@@ -46,5 +46,11 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ refreshed, skipped, failures });
+  return NextResponse.json({
+    refreshed,
+    unchanged,
+    skipped,
+    inactive: (boxes?.length ?? 0) - activeBoxes.length,
+    failures,
+  });
 }

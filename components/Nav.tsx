@@ -6,9 +6,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { emailToUsername } from '@/lib/username';
 import { NewsIcon, MenuIcon, CloseIcon } from './icons';
+import ThemeToggle from './ThemeToggle';
 
 const LINKS = [
   { href: '/', label: 'Home' },
+  { href: '/demo', label: 'Demo' },
   { href: '/newsy', label: 'Newsy' },
   { href: '/o-aplikacji', label: 'O aplikacji' },
   { href: '/kontakt', label: 'Kontakt' },
@@ -16,7 +18,7 @@ const LINKS = [
 
 /**
  * Sesje czytamy po stronie KLIENTA, a nie z ciasteczek na serwerze. Dzieki temu strony
- * publiczne (/, /o-aplikacji, /kontakt) nie sa dynamiczne i moga byc prerenderowane
+ * publiczne (/, /demo, /o-aplikacji, /kontakt) nie sa dynamiczne i moga byc prerenderowane
  * statycznie - szybszy LCP i realny SEO dla niezalogowanych odwiedzajacych.
  */
 export default function Nav() {
@@ -89,24 +91,27 @@ export default function Nav() {
           })}
         </nav>
 
-        {/* Dopoki nie znamy stanu sesji, nie renderujemy nic - inaczej mignelby zly przycisk. */}
-        {ready && (
-          <div className="user-area">
-            {username ? (
-              <>
-                <span className="avatar">{username.charAt(0) || '?'}</span>
-                <span className="user-name">{username}</span>
-                <button className="btn" onClick={signOut}>
-                  Wyloguj
-                </button>
-              </>
-            ) : (
-              <Link href="/login" className="btn">
-                Zaloguj
-              </Link>
-            )}
-          </div>
-        )}
+        <div className="header-tools">
+          <ThemeToggle />
+          {/* Dopoki nie znamy stanu sesji, nie renderujemy przycisku - inaczej mignelby zly. */}
+          {ready && (
+            <div className="user-area">
+              {username ? (
+                <>
+                  <span className="avatar">{username.charAt(0) || '?'}</span>
+                  <span className="user-name">{username}</span>
+                  <button className="btn" onClick={signOut}>
+                    Wyloguj
+                  </button>
+                </>
+              ) : (
+                <Link href="/login" className="btn">
+                  Zaloguj
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

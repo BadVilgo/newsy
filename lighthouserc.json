@@ -3,7 +3,11 @@
     "collect": {
       "startServerCommand": "npm start",
       "startServerReadyPattern": "Ready in",
-      "url": ["http://localhost:3000/", "http://localhost:3000/o-aplikacji"],
+      "url": [
+        "http://localhost:3000/",
+        "http://localhost:3000/demo",
+        "http://localhost:3000/o-aplikacji"
+      ],
       "numberOfRuns": 3,
       "settings": {
         "preset": "desktop"

@@ -1,79 +1,89 @@
 # Newsy - tablica tematów
 
 [![CI](https://github.com/BadVilgo/newsy/actions/workflows/ci.yml/badge.svg)](https://github.com/BadVilgo/newsy/actions/workflows/ci.yml)
+[![Lighthouse CI](https://github.com/BadVilgo/newsy/actions/workflows/lighthouse.yml/badge.svg)](https://github.com/BadVilgo/newsy/actions/workflows/lighthouse.yml)
+![Lighthouse 100 / 100 / 100 / 100](https://img.shields.io/badge/Lighthouse-100%20%2F%20100%20%2F%20100%20%2F%20100-brightgreen)
 
-**Demo:** [newsy-nine.vercel.app](https://newsy-nine.vercel.app)
+**Demo bez logowania: [newsy-nine.vercel.app/demo](https://newsy-nine.vercel.app/demo)**
+(pełna aplikacja: [newsy-nine.vercel.app](https://newsy-nine.vercel.app), konto pokazowe
+`test-user` / `test-password`)
 
-Dashboard, na którym zalogowany użytkownik dodaje dowolną liczbę "boxów". Jeden box to jeden
-obserwowany temat, np. *spółka Nvidia giełda*, *status wojna Rosja-Ukraina*, *postępy nad
-agentami AI*. Dla każdego tematu aplikacja zbiera wiadomości z Google News RSS, oddaje je Gemini
-do selekcji i pokazuje 4 najistotniejsze jako punkty z własnymi, polskimi opisami i linkami do
-źródeł. Druga zakładka w kafelku pokazuje poprzedni stan tematu, więc widać, co doszło. Boxy i
-historia newsów są zapisane na koncie, więc zostają po odświeżeniu strony i są dostępne z
-dowolnego urządzenia po zalogowaniu.
+Dashboard, na którym użytkownik dodaje "boxy" z obserwowanymi tematami, np. *spółka Nvidia
+giełda* albo *postępy nad agentami AI*. Codziennie o 8:00 aplikacja zbiera dla każdego tematu
+nagłówki z Google News RSS, a Gemini wybiera z nich 4 najistotniejsze i opisuje je po polsku,
+z linkami do źródeł. Nic starszego niż 48 godzin nie trafia na tablicę.
 
-Na tablicę nie trafia nic starszego niż 48 godzin, a pierwszeństwo mają wiadomości z ostatniej
-doby.
+## W skrócie
+
+1. **Full stack w dwóch językach, z sensownym podziałem.** Next.js 15 + TypeScript obsługuje
+   UI, konta i bazę, a osobny mikroserwis w Pythonie (FastAPI) całą logikę RSS i AI.
+2. **AI liczone co do zapytania.** Jedno wywołanie Gemini na temat na dzień, a często zero:
+   odświeżanie pomija tematy bez nowych wiadomości i konta, na które nikt nie zagląda.
+3. **Selekcja, która nie powtarza wczorajszego dnia.** Silnik pamięta poprzedni zestaw newsów,
+   skleja nagłówki o tym samym wydarzeniu i mówi modelowi, ile redakcji je relacjonuje.
+4. **Dostępność i wydajność mierzone automatycznie.** Lighthouse 100/100/100/100 na stronach
+   publicznych, audyt axe w testach, pełna obsługa z klawiatury, motyw jasny i ciemny.
+5. **142 testy i CI na każdy push.** 100 po stronie TypeScriptu (Vitest, React Testing Library,
+   axe) i 42 po stronie Pythona (pytest), do tego typecheck, build i Lighthouse CI.
 
 ## Stack
 
-- **Next.js 15 (App Router) + TypeScript** - frontend (React) i backend (API routes) w jednym
-  repo, jeden deploy. Nie ma tu osobnego serwera Express do utrzymywania. Strony wizytówkowe
-  są prerenderowane statycznie, dashboard renderuje się po stronie klienta.
+- **Next.js 15 (App Router) + React 19 + TypeScript** - frontend i backend (API routes) w
+  jednym repo, jeden deploy. Strony publiczne są prerenderowane statycznie, a `/` i `/demo`
+  odświeżają dane przez ISR. Dashboard renderuje się po stronie klienta.
 - **TanStack Query** - warstwa danych w dashboardzie: cache, ponowienia i optimistic updates
   przy usuwaniu, edycji i zmianie kolejności tematów.
-- **Python 3 + FastAPI** - osobny mikroserwis (`api/rss.py`) z całą logiką RSS i AI, wdrażany
-  jako funkcja serverless na tym samym Vercelu. Warstwa TypeScript tylko go woła i zapisuje wynik.
-- **Supabase (Postgres + Auth)** - relacyjna baza z Row Level Security zamiast pilnowania dostępu
-  ręcznie w kodzie.
-- **Google Gemini 2.5 Flash** - selekcja newsów i pisanie opisów, jedno wywołanie na temat.
-- **Vercel** - deploy z GitHuba, serverless functions dla UI, akcji użytkownika i silnika Pythona.
-- **GitHub Actions (scheduled workflow)** - codzienne odświeżanie newsów. Pętla po wszystkich
+- **Python 3 + FastAPI** - mikroserwis (`api/rss.py`) z logiką RSS i AI, wdrażany jako funkcja
+  serverless na tym samym Vercelu. Warstwa TypeScript tylko go woła i zapisuje wynik.
+- **Supabase (Postgres + Auth)** - relacyjna baza z Row Level Security zamiast pilnowania
+  dostępu ręcznie w kodzie.
+- **Google Gemini 2.5 Flash** - selekcja newsów i opisy. Tłumaczenie samego tematu robi tańszy
+  Flash-Lite.
+- **Vercel** - deploy z GitHuba, serverless functions dla UI, akcji użytkownika i silnika.
+- **GitHub Actions** - codzienne odświeżanie newsów (`scripts/refresh.ts`). Pętla po wszystkich
   boxach nie mieści się w limicie 60 s funkcji serverless na planie Hobby, więc ciężka robota
-  dzieje się na runnerze GitHuba (`scripts/refresh.ts`), a nie na Vercelu.
+  dzieje się na runnerze GitHuba.
+- **CSS bez frameworka** - zmienne CSS dla dwóch motywów, View Transitions API do animacji.
 
-Nie ma tu Reduxa, GraphQL ani mikroserwisów ponad ten jeden - projekt nie jest na tyle duży, żeby
-to miało sens.
+Nie ma tu Reduxa, GraphQL ani mikroserwisów ponad ten jeden - projekt nie jest na tyle duży,
+żeby to miało sens.
 
-## Kilka rzeczy, które warto wiedzieć o implementacji
+## Jak działa silnik newsów
 
 **Podział na dwa języki jest funkcjonalny, nie ozdobny.** Python (`api/rss.py`) odpowiada za
-pobranie RSS, filtrowanie po czasie i rozmowę z Gemini. TypeScript odpowiada za konta, bazę i
-RLS. Dzięki temu logika newsów żyje w jednym pliku, a nie jest rozsmarowana po dwóch stosach.
+pobranie RSS, filtrowanie, grupowanie i rozmowę z Gemini. TypeScript odpowiada za konta, bazę
+i RLS. Logika newsów żyje w jednym pliku, a nie jest rozsmarowana po dwóch stosach.
 
-**Pierwotna wersja korzystała z Google Search grounding i została wycofana.** Model sam
-przeszukiwał sieć, ale wyniki bywały nieprzewidywalne, źródła trzeba było odzyskiwać z offsetów
-`groundingSupports`, a grounding jest rozliczany za każde zapytanie - czyli o rzędy wielkości
-drożej niż wymiana samych tokenów. Wersja na RSS daje deterministyczną pulę wejściową i kosztuje
-grosze miesięcznie. W historii repo widać obie.
+**Selekcja to jedno wywołanie Gemini.** Model dostaje do 30 wydarzeń (nagłówek, źródło, data,
+liczba redakcji), wybiera do 4 najważniejszych i od razu pisze własne polskie opisy. Prompt
+wymaga konkretu (kto, co, liczba, data), zakazuje ogólników i każe odrzucać poradniki oraz
+zestawienia. Model opiera się wyłącznie na nagłówku: opis z Google News RSS tylko powtarza
+tytuł, więc wypadł z promptu i wejście jest krótsze.
 
-**Selekcja to jedno wywołanie Gemini, nie trzy.** Model dostaje do 30 pozycji (nagłówek, opis,
-źródło, data), wybiera do 4 najważniejszych i od razu pisze do nich własne polskie opisy. Osobny krok
-tłumaczenia byłby zbędny, bo model jest wielojęzyczny i angielskie nagłówki streszcza po polsku
-w tym samym przebiegu - a tłumaczenie tłumaczenia tylko psułoby język.
+**Silnik pamięta poprzedni dzień.** Razem z tematem dostaje wczorajsze newsy. Linki, które
+użytkownik już widział, wypadają z puli przed selekcją, a wczorajsze opisy trafiają do promptu
+z instrukcją, żeby nie wybierać tego samego wydarzenia bez nowego faktu. Pamięć pochodzi z
+tabeli `snapshots`, więc nie wymagała żadnej zmiany w bazie.
 
-**Gdy polskie media milczą, aplikacja sięga po wydanie amerykańskie.** Przy tematach niszowych
-polski RSS potrafi zwrócić zero świeżych pozycji (sprawdzone: "UAP" w oknie 48h to 0 wyników po
-polsku i 15 po angielsku). Jeśli świeżych polskich pozycji jest mniej niż 8, temat jest tłumaczony
-na angielskie hasło i dobierane jest wydanie US. Kluczowe: pule są **łączone, nie zastępowane** -
-inaczej pięć trafnych polskich newsów przegrałoby z zagranicznymi ogólnikami. Pozycje z zagranicy
-dostają w UI znacznik `US`.
+**Podobne nagłówki są sklejane w Pythonie, nie przez model.** Ten sam news z pięciu redakcji
+zajmowałby pięć z 30 miejsc. Nagłówki są normalizowane (bez znaków diakrytycznych, rdzenie
+słów, bez słów pustych) i łączone, gdy mają co najmniej 3 wspólne słowa i podobieństwo
+Jaccarda od 0,5. Model widzi jedną linię z dopiskiem "relacjonuje: N źródeł", co jest tanim,
+deterministycznym sygnałem wagi, a punkt na tablicy dostaje do 3 źródeł.
 
-Tłumaczenie samego tematu też jest zapytaniem do modelu, ale temat kafelka jest praktycznie
-stały, więc liczone jest **raz** i cache'owane w kolumnie `boxes.topic_en`. Codzienne odświeżanie
-korzysta z cache, więc niezależnie od ścieżki wychodzi jedno wywołanie Gemini na temat na dzień.
+**Gdy polskie media milczą, aplikacja sięga po wydanie amerykańskie.** Jeśli świeżych polskich
+pozycji jest mniej niż 8, temat jest tłumaczony na angielskie hasło i dobierane jest wydanie
+US. Pule są **łączone, nie zastępowane**, a pozycje z zagranicy dostają w UI znacznik `US`.
+Tłumaczenie tematu jest liczone raz (tańszym modelem Flash-Lite, z zapasowym przejściem na
+główny) i cache'owane w kolumnie `boxes.topic_en`.
 
-**Filtr czasu nie ufa wyszukiwarce.** Google News sortuje wyniki po trafności i bez operatora
-`when:` wrzuca artykuły sprzed tygodni. Zapytanie ma więc `when:1d` (z poszerzeniem do `when:2d`
-przy ubogich tematach), ale niezależnie od tego każda pozycja jest jeszcze twardo odsiewana po
-realnej dacie z `pubDate`. Jeśli z ostatnich 24h zbierze się co najmniej 4 pozycje, starsze w
-ogóle nie trafiają do modelu - 48h to sufit awaryjny, nie domyślne okno.
+**Filtr czasu nie ufa wyszukiwarce.** Google News sortuje po trafności i bez operatora `when:`
+wrzuca artykuły sprzed tygodni. Zapytanie ma więc `when:1d` (z poszerzeniem do `when:2d`), a
+każda pozycja jest jeszcze twardo odsiewana po realnej dacie z `pubDate`. Jeśli z ostatnich
+24h zbierze się co najmniej 4 pozycje, starsze w ogóle nie trafiają do modelu.
 
 **Lepiej pokazać mniej niż nic.** Gdy świeżych pozycji jest 1-3, wyświetlane są wszystkie.
 Komunikat o braku wiadomości pojawia się dopiero, gdy nie ma dosłownie nic.
-
-**Tytuły źródeł zostają w oryginale.** Opis newsa jest po polsku, ale link prowadzi do artykułu z
-jego prawdziwym nagłówkiem - po przetłumaczonym tytule nikt by tego tekstu nie odnalazł.
 
 **Model ma wyłączone "myślenie" - i to była naprawa realnego błędu.** Codzienne odświeżanie co
 kilka dni wywalało się na jednym losowym temacie z komunikatem "Gemini zwrócił niepoprawny JSON".
@@ -86,33 +96,61 @@ listy nie wymaga rozumowania, więc myślenie jest wyłączone (`thinking_budget
 kilkukrotnie mniejsze zużycie tokenów. Komunikat błędu niesie teraz `finish_reason` i fragment
 odpowiedzi - bez tego pierwsze wystąpienie trzeba było odtwarzać ręcznie.
 
-**Druga zakładka w kafelku nie kosztuje dodatkowego zapytania.** Każde odświeżenie zapisuje nowy
-wiersz w tabeli `snapshots`. UI pokazuje najnowszy snapshot jako "Najnowsze", a poprzedni jako
-"Poprzednie" - wczorajsze newsy same stają się dzisiejszym starszym wiadrem.
+**Pierwotna wersja korzystała z Google Search grounding i została wycofana.** Wyniki bywały
+nieprzewidywalne, źródła trzeba było odzyskiwać z offsetów `groundingSupports`, a grounding
+jest rozliczany za każde zapytanie, czyli o rzędy wielkości drożej niż same tokeny. Wersja na
+RSS daje deterministyczną pulę wejściową. W historii repo widać obie.
 
-**Dostęp do danych jest pilnowany na poziomie bazy**, nie tylko w kodzie API. Reguły w
-[supabase/schema.sql](supabase/schema.sql) to polityki Row Level Security - nawet jakbym gdzieś
-zapomniał dopisać filtr po `user_id`, Postgres i tak nie odda cudzych wierszy.
+## Koszt pod kontrolą
 
-**Ręczne odświeżanie** ([api/refresh](app/api/refresh/route.ts)) jest limitowane do 30 żądań na
-dobę na jeden adres IP. Licznik siedzi w bazie (tabela `rate_limits` + atomowa funkcja
-`consume_rate_limit`), a nie w pamięci procesu, bo funkcje serverless na Vercelu są bezstanowe i
-kolejne żądania trafiają na różne instancje.
+Codzienne odświeżanie to jedyne miejsce, gdzie koszt rośnie razem z liczbą użytkowników,
+dlatego ma trzy bezpieczniki:
 
-**Logowanie działa na zwykłym loginie, nie na e-mailu** - Supabase Auth wymaga jednak adresu pod
-spodem, więc `lib/username.ts` mapuje login na syntetyczny adres. Żaden e-mail nigdzie nie jest
-wysyłany, to czysto techniczny szczegół.
+- **Temat bez nowych wiadomości nie woła modelu.** Skrypt przekazuje silnikowi czas ostatniego
+  snapshotu. Jeśli od tamtej pory w RSS nie pojawiło się nic nowego, silnik kończy przed
+  wywołaniem Gemini, a kafelek zachowuje dotychczasowe newsy.
+- **Konta nieaktywne od 7 dni są pomijane.** Przy publicznym demo i jednorazowych rejestracjach
+  porzucone tematy kosztowałyby zapytanie dziennie bez końca. Aktywność to znacznik
+  `last_seen_at` w metadanych konta Supabase Auth, zapisywany przy wejściu na tablicę najwyżej
+  raz na dobę (`lib/activeUsers.ts`). Samo `last_sign_in_at` nie wystarcza, bo sesja odnawia
+  się tokenem tygodniami. Konto demo odświeża się zawsze.
+- **Ręczne odświeżanie** ([api/refresh](app/api/refresh/route.ts)) ma limit 30 żądań na dobę
+  na adres IP. Licznik siedzi w bazie (tabela `rate_limits` + atomowa funkcja
+  `consume_rate_limit`), bo funkcje serverless są bezstanowe.
+
+Trzy ścieżki odświeżania (skrypt dzienny, endpoint cron, przycisk w UI) korzystają z jednej
+funkcji `refreshBoxNews` w `lib/refreshBox.ts`.
+
+## Frontend
+
+**Publiczne demo bez logowania.** `/demo` i podgląd na stronie głównej pokazują tablicę konta
+pokazowego w trybie tylko do odczytu. Dane czyta serwer, logując się na to konto publicznym
+kluczem (anon), więc odczyt przechodzi przez te same polityki RLS co zwykła sesja i nie wymaga
+klucza `service_role`. Wynik jest cache'owany na 15 minut (ISR), więc ruch odwiedzających nie
+obciąża bazy. Gdy baza nie odpowiada, strona renderuje się bez podglądu.
+
+**Optimistic updates.** Usunięcie, edycja i zmiana kolejności tematu są widoczne natychmiast,
+a przy błędzie serwera stan wraca do poprzedniego (TanStack Query).
+
+**Animacje przez View Transitions API.** Kafelki płynnie zamieniają się miejscami przy zmianie
+kolejności, dodaniu i usunięciu. Przeglądarki bez wsparcia i użytkownicy z
+`prefers-reduced-motion` dostają zmianę bez animacji (`lib/useViewTransition.ts`).
+
+**Motyw jasny i ciemny bez mignięcia.** Wybór siedzi w `localStorage`, a krótki skrypt w
+`<head>` ustawia motyw przed pierwszym malowaniem. Obie ikony przełącznika są w HTML i wybiera
+je CSS, więc nie ma błędu hydracji ani stanu w Reakcie.
+
+**Druga zakładka w kafelku nie kosztuje dodatkowego zapytania.** Każde odświeżenie zapisuje
+nowy wiersz w tabeli `snapshots`. UI pokazuje najnowszy jako "Najnowsze", a poprzedni jako
+"Poprzednie".
+
+**Tytuły źródeł zostają w oryginale.** Opis newsa jest po polsku, ale link prowadzi do
+artykułu z jego prawdziwym nagłówkiem.
 
 ### Dostępność i wydajność
 
-Strony wizytówkowe (`/`, `/o-aplikacji`, `/kontakt`) są otwarte i **prerenderowane statycznie**.
-Middleware przepuszcza je bez odpytywania Supabase, więc nie ma zbędnego roundtripu do bazy, a
-treść jest widoczna dla crawlerów - wcześniej wszystko lądowało na `/login` i sitemap z OG były
-w praktyce martwe.
-
-Zmiana kolejności tematów działa **z klawiatury**. Drag & drop (uchwyt przy tytule) to tylko
-dodatek dla myszy - strzałki góra/dół są dostępne na każdej szerokości ekranu. Wcześniej były
-ukryte na desktopie klasą `mobile-only`, co czyniło reorder niedostępnym (WCAG 2.1.1). Test w
+Zmiana kolejności tematów działa **z klawiatury**. Drag & drop to dodatek dla myszy, a
+strzałki góra/dół są dostępne na każdej szerokości ekranu (WCAG 2.1.1). Test w
 `components/Box.test.tsx` pilnuje, żeby to nie wróciło.
 
 Etykiety akcji zawierają nazwę tematu (`Odśwież temat "UAP"`), bo przy kilkunastu kafelkach
@@ -120,14 +158,30 @@ czytnik ekranu odczytywałby kilkanaście identycznych "Odśwież".
 
 Audyt dostępności jest zautomatyzowany dwutorowo: **axe** działa na renderowanych komponentach
 w testach jednostkowych, a **Lighthouse CI** mierzy gotowe strony w prawdziwej przeglądarce
-(axe pod jsdom nie liczy kontrastu, Lighthouse tak - stąd oba).
+(axe pod jsdom nie liczy kontrastu, Lighthouse tak).
 
-Wyniki Lighthouse dla stron publicznych (preset desktop, mediana z 3 przebiegów):
+Wyniki Lighthouse dla stron publicznych (preset desktop, lokalny build produkcyjny, mediana z 3
+przebiegów):
 
 | Strona | Performance | Accessibility | Best practices | SEO | LCP | CLS |
 |---|---|---|---|---|---|---|
-| `/` | 100 | 100 | 100 | 100 | 466 ms | 0.004 |
-| `/o-aplikacji` | 100 | 100 | 100 | 100 | 462 ms | 0.004 |
+| `/` | 100 | 100 | 100 | 100 | 475 ms | 0.001 |
+| `/demo` | 100 | 100 | 100 | 100 | 454 ms | 0.001 |
+| `/o-aplikacji` | 100 | 100 | 100 | 100 | 460 ms | 0.001 |
+| `/login` | 100 | 100 | 100 | 100 | 460 ms | 0.000 |
+
+Strony publiczne (`/`, `/demo`, `/o-aplikacji`, `/kontakt`) middleware przepuszcza bez
+odpytywania Supabase, więc nie ma zbędnego roundtripu do bazy, a treść widzą crawlery.
+
+## Bezpieczeństwo danych
+
+**Dostęp jest pilnowany na poziomie bazy**, nie tylko w kodzie API. Reguły w
+[supabase/schema.sql](supabase/schema.sql) to polityki Row Level Security: nawet gdyby w API
+zabrakło filtra po `user_id`, Postgres nie odda cudzych wierszy.
+
+**Logowanie działa na zwykłym loginie, nie na e-mailu.** Supabase Auth wymaga adresu pod
+spodem, więc `lib/username.ts` mapuje login na syntetyczny adres. Żaden e-mail nie jest
+wysyłany.
 
 ### Dwie pułapki, które kosztowały najwięcej czasu
 
@@ -146,21 +200,22 @@ albo `message` i serializuje obiekty, więc w UI widać przyczynę, a nie `[obje
 
 ## Testy i CI
 
-**57 testów po stronie TypeScriptu** (Vitest):
+**100 testów po stronie TypeScriptu** (Vitest):
 
-- logika serwerowa - klient silnika RSS: rozwiązywanie adresu, cache tłumaczenia, mapowanie
-  błędów i wykrywanie przekierowań (`lib/rssEngine.test.ts`), mapowanie login na adres
+- logika serwerowa - klient silnika RSS (`lib/rssEngine.test.ts`), pamięć poprzedniego dnia i
+  wspólna ścieżka odświeżania (`lib/refreshBox.test.ts`), wykrywanie nieaktywnych kont
+  (`lib/activeUsers.test.ts`), bramka godzinowa (`lib/schedule.test.ts`), mapowanie loginu
   (`lib/username.test.ts`), autoryzacja endpointu cron (`app/api/cron/refresh/route.test.ts`),
-- komponenty (React Testing Library) - przełączanie zakładek i dostępność reorderu
-  (`components/Box.test.tsx`), rozwijanie źródeł i data publikacji (`BulletItem.test.tsx`),
-  menu mobilne i stan sesji (`Nav.test.tsx`), integracja z TanStack Query wraz z dowodem, że
-  usuwanie jest optimistic (`Dashboard.test.tsx`),
+- komponenty (React Testing Library) - zakładki i dostępność reorderu (`Box.test.tsx`), źródła
+  i data publikacji (`BulletItem.test.tsx`), menu i stan sesji (`Nav.test.tsx`), kafelek tylko
+  do odczytu (`ReadOnlyBox.test.tsx`), przełącznik motywu (`ThemeToggle.test.tsx`), integracja
+  z TanStack Query wraz z dowodem, że usuwanie jest optimistic (`Dashboard.test.tsx`),
 - **axe** - audyt dostępności renderowanych komponentów, wpięty w te same testy.
 
-**22 testy po stronie Pythona** (pytest, `tests/test_rss.py`) - tam siedzi logika biznesowa
-silnika: twarde odcięcie 48h, priorytet ostatnich 24h, łączenie i deduplikacja pul PL + US,
-korzystanie ze zcache'owanego tłumaczenia, budowanie punktów ze źródłem i datą, a także
-konfiguracja modelu i ponowienie przy uciętej odpowiedzi (patrz niżej).
+**42 testy po stronie Pythona** (pytest, `tests/test_rss.py`) - tam siedzi logika biznesowa
+silnika: twarde odcięcie 48h, priorytet ostatnich 24h, łączenie pul PL + US, grupowanie
+podobnych nagłówków, pamięć poprzedniego dnia, pomijanie tematu bez zmian, cache i zapasowy
+model tłumaczenia, a także konfiguracja modelu i ponowienie przy uciętej odpowiedzi.
 
 ```
 npm test          # testy TypeScriptu (Vitest + RTL + axe)
@@ -178,14 +233,15 @@ build, wydajność ostrzega (wyniki w CI bywają zmienne).
 
 ```
 api/
-  rss.py                      # silnik: Google News RSS + selekcja i opisy przez Gemini (FastAPI)
+  rss.py                      # silnik: RSS, grupowanie, pamięć, selekcja przez Gemini (FastAPI)
 requirements.txt              # zależności Pythona (feedparser, google-genai, fastapi)
 requirements-dev.txt          # + pytest
 tests/test_rss.py             # testy logiki silnika (pytest)
 app/
-  page.tsx                    # strona główna (landing, statyczna)
+  page.tsx                    # strona główna z podglądem dzisiejszych newsów (ISR)
+  demo/page.tsx               # publiczna tablica tylko do odczytu (ISR)
   newsy/page.tsx              # dashboard z tablicą tematów
-  o-aplikacji/page.tsx        # opis produktu
+  o-aplikacji/page.tsx        # opis produktu i stack
   kontakt/page.tsx            # kontakt
   login/page.tsx              # logowanie / rejestracja na login (nie e-mail)
   api/boxes/                  # CRUD boxów (tu liczony jest cache topic_en)
@@ -195,11 +251,16 @@ scripts/
   refresh.ts                  # codzienne odświeżenie wszystkich (uruchamiane przez GitHub Actions)
 lib/
   rssEngine.ts                # klient silnika Pythona + mapowanie błędów
+  refreshBox.ts               # wspólna logika odświeżenia boxa + pamięć poprzedniego dnia
+  activeUsers.ts              # znacznik aktywności i lista kont nieaktywnych
+  demo.ts                     # dane publicznego podglądu (konto demo, cache 15 min)
+  schedule.ts                 # bramka godzinowa 8:00 Europe/Warsaw
   username.ts                 # mapowanie login <-> syntetyczny e-mail
+  useViewTransition.ts        # animacje zmian układu (View Transitions API)
   supabase/                   # klienci: przeglądarka / serwer / admin (service_role)
   types.ts
-components/                   # Nav, Dashboard, Box, AddBox, NewsSection, BulletItem, Providers
-                              # (+ testy .test.tsx obok komponentów)
+components/                   # Nav, Dashboard, Box, BoxNews, ReadOnlyBox, AddBox, BulletItem,
+                              # ThemeToggle, Footer (+ testy .test.tsx obok komponentów)
 supabase/schema.sql           # tabele + polityki RLS
 middleware.ts                 # ochrona tras (strony publiczne przepuszczane bez Supabase)
 lighthouserc.json             # progi Core Web Vitals, dostępności i SEO
@@ -250,6 +311,10 @@ w obrębie jednej próby).
 Temat, dla którego nie ma nic z ostatnich 48h, jest **pomijany, a nie raportowany jako błąd** -
 inaczej spokojny dzień w niszowym temacie czerwieniłby cały workflow i czerwony status przestałby
 cokolwiek znaczyć. Box zachowuje wtedy poprzedni snapshot.
+
+Z tego samego powodu błędem nie jest temat, w którym od ostatniego snapshotu nic nie doszło
+(silnik kończy bez wołania Gemini), ani box konta nieaktywnego od 7 dni. Podsumowanie przebiegu
+podaje osobno liczbę odświeżonych, niezmienionych i pominiętych.
 
 Ręczne "Run workflow" wymusza pełne odświeżenie. Wymaga sekretów repo (Settings -> Secrets and
 variables -> Actions): `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` oraz

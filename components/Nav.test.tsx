@@ -32,7 +32,7 @@ describe('Nav', () => {
 
   it('renderuje wszystkie pozycje menu', () => {
     render(<Nav />);
-    for (const label of ['Home', 'Newsy', 'O aplikacji', 'Kontakt']) {
+    for (const label of ['Home', 'Demo', 'Newsy', 'O aplikacji', 'Kontakt']) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
     }
   });
@@ -63,6 +63,11 @@ describe('Nav', () => {
       'aria-expanded',
       'false',
     );
+  });
+
+  it('ma przełącznik motywu dostępny jeszcze przed ustaleniem stanu sesji', () => {
+    render(<Nav />);
+    expect(screen.getByRole('button', { name: 'Przełącz motyw jasny/ciemny' })).toBeInTheDocument();
   });
 
   it('pokazuje przycisk logowania niezalogowanemu odwiedzającemu', async () => {

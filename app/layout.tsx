@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import Providers from '@/components/Providers';
+import { THEME_INIT_SCRIPT } from '@/components/ThemeToggle';
 import './globals.css';
 
 const SITE_URL = 'https://newsy-nine.vercel.app';
@@ -45,12 +46,17 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: '#0e131f',
-  colorScheme: 'dark',
+  colorScheme: 'dark light',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pl">
+    // suppressHydrationWarning: skrypt motywu ustawia data-theme na <html> przed hydracją,
+    // więc ten jeden atrybut może się różnić od wersji z serwera - i tak ma być.
+    <html lang="pl" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>

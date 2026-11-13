@@ -95,7 +95,11 @@ describe('fetchRssBullets', () => {
     process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
     const bullets = [{ text: 'news', sources: [] }];
     mockFetch({ ok: true, status: 200, json: async () => ({ bullets }) });
-    await expect(fetchRssBullets('Polska')).resolves.toEqual({ bullets, topicEn: null });
+    await expect(fetchRssBullets('Polska')).resolves.toEqual({
+      bullets,
+      topicEn: null,
+      unchanged: false,
+    });
   });
 
   it('oddaje topic_en policzony przez silnik (do zapisania w cache)', async () => {
@@ -112,6 +116,40 @@ describe('fetchRssBullets', () => {
     await fetchRssBullets('Postępy nad agentami AI', 'AI agents');
     const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
     expect(body).toMatchObject({ topic: 'Postępy nad agentami AI', topic_en: 'AI agents' });
+  });
+
+  // Pamiec miedzy dniami: silnik dostaje wczorajsze newsy (zeby ich nie powtarzac) i czas
+  // ostatniego snapshotu (zeby nie wolac modelu, gdy nic nie doszlo).
+  it('wysyla pamiec poprzedniego snapshotu do silnika', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    const spy = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ bullets: [] }) });
+    global.fetch = spy as unknown as typeof fetch;
+    const previous = [{ text: 'Wczorajszy news.', urls: ['https://example.com/a'] }];
+
+    await fetchRssBullets('Polska', null, { previous, since: '2026-07-26T06:00:00+00:00' });
+
+    const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.previous).toEqual(previous);
+    expect(body.since).toBe('2026-07-26T06:00:00+00:00');
+  });
+
+  it('bez pamieci nie dokleja pustych pol do zadania', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    const spy = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ bullets: [] }) });
+    global.fetch = spy as unknown as typeof fetch;
+
+    await fetchRssBullets('Polska', null, { previous: [], since: null });
+
+    const body = JSON.parse((spy.mock.calls[0][1] as RequestInit).body as string);
+    expect(body).not.toHaveProperty('previous');
+    expect(body).not.toHaveProperty('since');
+  });
+
+  it('przekazuje dalej informacje, ze nic sie nie zmienilo', async () => {
+    process.env.RSS_ENGINE_URL = 'https://example.com/api/rss';
+    mockFetch({ ok: true, status: 200, json: async () => ({ bullets: [], unchanged: true }) });
+    const result = await fetchRssBullets('Polska', null, { since: '2026-07-26T06:00:00+00:00' });
+    expect(result.unchanged).toBe(true);
   });
 
   it('rzuca czytelny blad przy 401 Protected deployment', async () => {

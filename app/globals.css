@@ -1,16 +1,41 @@
+/* Motyw ciemny jest domyślny. Jasny włącza atrybut data-theme="light" na <html>, ustawiany
+   przez przełącznik w nagłówku (i przez skrypt w <head>, zanim strona się namaluje). */
 :root {
+  color-scheme: dark;
   --bg: #0e131f;
   --surface: #141b28;
   --surface-2: #0f1622;
   --border: #263043;
   --border-2: #2c374b;
   --text: #e6e9f0;
+  --text-body: #c4cad6;
   --text-dim: #9aa3b8;
   --text-muted: #7a8399;
   --accent: #3fb6a8;
   --accent-blue: #1f6feb;
   --link: #5aa9f0;
   --danger: #f0999a;
+  --warning: #e7bd6a;
+  --shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --border: #d9dfe9;
+  --border-2: #c3ccd9;
+  --text: #172033;
+  --text-body: #2b3547;
+  --text-dim: #4a5568;
+  --text-muted: #596375;
+  --accent: #0c7468;
+  --accent-blue: #1f6feb;
+  --link: #1a5fd0;
+  --danger: #b3261e;
+  --warning: #85560a;
+  --shadow: 0 6px 22px rgba(23, 32, 51, 0.1);
 }
 
 * {
@@ -24,6 +49,7 @@ body {
   color: var(--text);
   background: var(--bg);
   line-height: 1.5;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 a {
@@ -148,7 +174,13 @@ button:focus-visible,
   border-radius: 8px;
   padding: 7px 12px;
   font-size: 13px;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  /* Przycisk bywa linkiem (<a class="btn">) - bez tego dziedziczyłby podkreślenie. */
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn:hover {
@@ -213,11 +245,64 @@ button:focus-visible,
 }
 
 .card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--card-accent, var(--accent));
   border-radius: 10px;
   padding: 16px;
+  transition: box-shadow 0.2s;
+}
+
+.card:hover {
+  box-shadow: var(--shadow);
+}
+
+/* Odświeżanie kafelka: cienki pasek postępu u góry, a lista newsów przygasa do czasu
+   odpowiedzi serwera. Nowe newsy wjeżdżają potem animacją .news-fade. */
+.card-refreshing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat;
+  background-size: 40% 100%;
+  animation: sweep 1.1s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    background-position: -60% 0;
+  }
+  to {
+    background-position: 160% 0;
+  }
+}
+
+.news-panel {
+  transition: opacity 0.2s;
+}
+
+.news-panel.is-refreshing {
+  opacity: 0.45;
+}
+
+.news-fade {
+  animation: fade-up 0.25s ease-out;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .card-head {
@@ -249,7 +334,11 @@ button:focus-visible,
   place-items: center;
   line-height: 0;
   border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s, transform 0.1s;
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.9);
 }
 
 .icon-btn:hover {
@@ -308,7 +397,7 @@ button:focus-visible,
   margin-bottom: 11px;
   font-size: 13.5px;
   line-height: 1.5;
-  color: #c4cad6;
+  color: var(--text-body);
 }
 
 .bullet-marker {
@@ -348,6 +437,7 @@ button:focus-visible,
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 7px;
+  animation: fade-up 0.18s ease-out;
 }
 
 .source-list li {
@@ -371,14 +461,42 @@ button:focus-visible,
   text-decoration: underline;
 }
 
-.footer-note {
+/* ===== Stopka wspólna dla wszystkich stron ===== */
+.site-footer {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 34px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.site-footer-note {
+  display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-top: 18px;
-  font-size: 11px;
-  color: var(--text-muted);
   font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.site-footer-links {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.site-footer-links a {
+  color: var(--text-dim);
+  text-underline-offset: 2px;
+}
+
+.site-footer-links a:hover {
+  color: var(--text);
 }
 
 .pulse-dot {
@@ -408,7 +526,27 @@ button:focus-visible,
 
 .auth-wrap {
   max-width: 340px;
-  margin: 80px auto;
+  margin: 64px auto;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--text);
+}
+
+.auth-title {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0 0 16px;
 }
 
 .auth-card {
@@ -605,7 +743,7 @@ button:focus-visible,
 .banner-warning {
   background: rgba(224, 168, 63, 0.1);
   border: 1px solid rgba(224, 168, 63, 0.35);
-  color: #e7bd6a;
+  color: var(--warning);
 }
 
 .banner-error {
@@ -639,6 +777,21 @@ button:focus-visible,
   break-inside: avoid;
   margin-bottom: 16px;
   transition: opacity 0.15s;
+}
+
+/* Przestawianie kafelków (View Transitions API): każdy kafelek ma własną nazwę przejścia,
+   więc przeglądarka przesuwa go płynnie ze starego miejsca na nowe. */
+::view-transition-group(*) {
+  animation-duration: 0.28s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }
 
 .grid-item.dragging {
@@ -778,6 +931,94 @@ button:focus-visible,
   color: var(--text-dim);
 }
 
+/* ===== Podgląd tablicy na stronie głównej + strona /demo ===== */
+.preview {
+  margin-bottom: 34px;
+  padding-bottom: 34px;
+  border-bottom: 1px solid var(--border);
+}
+
+.preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-bottom: 16px;
+}
+
+.preview-title {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.preview-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.preview-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.preview-link:hover {
+  text-decoration: underline;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.demo-intro {
+  margin-bottom: 4px;
+}
+
+.demo-title {
+  font-size: clamp(22px, 4vw, 30px);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  margin: 0 0 14px;
+}
+
+.demo-intro .hero-badge {
+  margin-bottom: 14px;
+}
+
+.empty-state .btn-lg {
+  margin-top: 4px;
+}
+
+/* ===== Lista technologii (O aplikacji) ===== */
+.stack-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 0 0 18px;
+}
+
+.stack-chip {
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  padding: 4px 11px;
+}
+
 /* ===== Strony tekstowe (O aplikacji / Kontakt) ===== */
 .prose {
   max-width: 760px;
@@ -909,6 +1150,45 @@ button:focus-visible,
   word-break: break-all;
 }
 
+/* ===== Prawa strona nagłówka: przełącznik motywu + konto ===== */
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  line-height: 0;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.theme-toggle:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Obie ikony są w DOM, widoczną wybiera motyw: w ciemnym słońce („włącz jasny"),
+   w jasnym księżyc. Dzięki temu przycisk nie potrzebuje stanu w React. */
+.theme-icon-light {
+  display: none;
+}
+
+:root[data-theme='light'] .theme-icon-dark {
+  display: none;
+}
+
+:root[data-theme='light'] .theme-icon-light {
+  display: block;
+}
+
 /* ===== Hamburger menu (mobilka) ===== */
 /* Desktop: przycisk ukryty, a kontener "rozpuszcza sie" (display:contents), zeby
    .main-nav i .user-area byly bezposrednimi elementami flex naglowka jak dotad. */
@@ -966,10 +1246,11 @@ button:focus-visible,
     font-size: 14px;
   }
 
-  .nav-collapse.open .user-area {
+  .nav-collapse.open .header-tools {
     margin-top: 6px;
     padding-top: 12px;
     border-top: 1px solid var(--border);
+    justify-content: space-between;
   }
 
   /* W rozwinietym menu pokazujemy nazwe uzytkownika (domyslnie na mobilce ukryta). */
@@ -986,7 +1267,7 @@ button:focus-visible,
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.4px;
-  color: var(--accent-blue);
+  color: var(--link);
   background: rgba(31, 111, 235, 0.12);
   border: 1px solid rgba(31, 111, 235, 0.35);
   border-radius: 5px;
@@ -1015,7 +1296,7 @@ button:focus-visible,
 }
 
 .btn-danger {
-  background: rgba(226, 85, 79, 0.16);
+  background: rgba(226, 85, 79, 0.14);
   border-color: #e2554f;
   color: var(--danger);
   font-weight: 500;

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+import Footer from '@/components/Footer';
+import { REPO_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'O aplikacji',
@@ -8,6 +10,20 @@ export const metadata: Metadata = {
     'newsy.live - osobista tablica najważniejszych wiadomości wybieranych przez AI. Zobacz, co możesz zrobić i jak to działa.',
   alternates: { canonical: '/o-aplikacji' },
 };
+
+const STACK = [
+  'Next.js 15 (App Router)',
+  'React 19',
+  'TypeScript',
+  'TanStack Query',
+  'Supabase (Postgres + RLS)',
+  'Python + FastAPI',
+  'Gemini 2.5 Flash',
+  'Vitest + Testing Library',
+  'axe',
+  'Lighthouse CI',
+  'GitHub Actions',
+];
 
 export default function AboutPage() {
   return (
@@ -60,9 +76,9 @@ export default function AboutPage() {
           <li>
             <span className="step-num">2</span>
             <div>
-              <strong>AI zbiera i selekcjonuje.</strong> Aplikacja pobiera do trzydziestu
-              doniesień i wybiera z nich do czterech najważniejszych, odrzucając clickbait
-              i powtórki.
+              <strong>AI zbiera i selekcjonuje.</strong> Aplikacja pobiera świeże doniesienia
+              i wybiera z nich do czterech najważniejszych, odrzucając clickbait, poradniki
+              i to, co pokazała już wczoraj.
             </div>
           </li>
           <li>
@@ -86,23 +102,49 @@ export default function AboutPage() {
         </p>
 
         <h2 className="prose-h2">Pod maską</h2>
+        <ul className="stack-list" aria-label="Użyte technologie">
+          {STACK.map((tech) => (
+            <li key={tech} className="stack-chip">
+              {tech}
+            </li>
+          ))}
+        </ul>
         <p className="prose-text">
-          Wiadomości pochodzą z Google News RSS, a przetwarza je osobny silnik napisany w{' '}
-          <strong>Pythonie (FastAPI)</strong>: zbiera do 30 newsów na temat, odsiewa wszystko
-          starsze niż 48 godzin i jednym zapytaniem do Gemini wybiera najważniejsze pozycje oraz
-          pisze do nich własne, polskie opisy. Resztą - kontami, bazą i codziennym odświeżaniem
-          o 8:00 - zajmuje się aplikacja Next.js.
+          <strong>Frontend</strong> to Next.js 15 z App Routerem i TypeScript. Strony publiczne
+          są prerenderowane (podgląd demo odświeża się przez ISR), a tablica korzysta z TanStack
+          Query: usuwanie, edycja i zmiana kolejności tematów są optimistic, więc interfejs
+          reaguje od razu i cofa zmianę, gdy serwer odmówi. Kolejność da się zmieniać z
+          klawiatury, a przestawianie kafelków animuje View Transitions API. Dostępność pilnują
+          testy axe na komponentach i Lighthouse CI na gotowych stronach.
+        </p>
+        <p className="prose-text">
+          <strong>Dane</strong> pochodzą z Google News RSS, a przetwarza je osobny silnik
+          napisany w <strong>Pythonie (FastAPI)</strong>: zbiera wiadomości na temat, odsiewa
+          wszystko starsze niż 48 godzin, grupuje nagłówki opisujące tę samą historię i pomija
+          to, co było już pokazane dzień wcześniej. Potem jednym zapytaniem do Gemini wybiera
+          najważniejsze pozycje i pisze do nich własne, polskie opisy. Kontami i bazą zajmuje
+          się Supabase z Row Level Security, a codzienne odświeżanie o 8:00 uruchamia GitHub
+          Actions.
+        </p>
+        <p className="prose-text">
+          Cały kod, razem z testami i opisem decyzji technicznych, jest{' '}
+          <a href={REPO_URL} target="_blank" rel="noreferrer">
+            publiczny na GitHubie
+          </a>
+          .
         </p>
 
         <div className="hero-actions">
-          <Link href="/newsy" className="btn btn-primary btn-lg">
-            Przejdź do Newsów
+          <Link href="/demo" className="btn btn-primary btn-lg">
+            Zobacz demo
           </Link>
           <Link href="/kontakt" className="btn btn-lg">
             Kontakt
           </Link>
         </div>
       </article>
+
+      <Footer />
     </main>
   );
 }

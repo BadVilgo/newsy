@@ -15,20 +15,23 @@
  * natychmiast, jeśli jest jeszcze przed 8:00. Latem (CEST) robotę wykonuje okno 6:xx UTC,
  * zimą (CET) okno 7:xx UTC - w obu przypadkach o 8:0x lokalnie.
  *
+ * Oszczędzanie zapytań do Gemini (oba mechanizmy wyłącza FORCE_REFRESH):
+ *  - konta, na które nikt nie zaglądał od tygodnia, są pomijane (lib/activeUsers.ts),
+ *  - gdy od poprzedniego snapshotu nie pojawiło się nic nowego, silnik kończy bez wołania
+ *    modelu, a box zachowuje dotychczasowe newsy („bez zmian").
+ *
  * Ręczne uruchomienie (workflow_dispatch) ustawia FORCE_REFRESH=true i odświeża wszystko
- * niezależnie od świeżości i pory dnia - wygodne do testów.
+ * niezależnie od świeżości, aktywności konta i pory dnia - wygodne do testów.
  *
  * Uruchomienie lokalne:
  *   npx tsx --env-file=.env.local scripts/refresh.ts
  */
 import { createAdminClient } from '../lib/supabase/admin';
-import { fetchRssBullets, RateLimitError, NoFreshNewsError } from '../lib/rssEngine';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { RateLimitError, NoFreshNewsError } from '../lib/rssEngine';
+import { METHOD, refreshBoxNews, type RefreshableBox, type RefreshOutcome } from '../lib/refreshBox';
+import { loadInactiveUserIds, INACTIVE_AFTER_DAYS } from '../lib/activeUsers';
 import { START_HOUR_PL, isBeforeStartHour, warsawHour } from '../lib/schedule';
-
-// Snapshoty zapisujemy z metoda 'rss' (silnik w Pythonie).
-const METHOD = 'rss';
-
-type RefreshResult = { bullets: Awaited<ReturnType<typeof fetchRssBullets>>['bullets']; topicEn: string | null };
 
 // Box uznajemy za „świeży" (do pominięcia), jeśli ma snapshot z ostatnich 3 godzin.
 // Okno musi być wyraźnie większe niż rozjazd prób (40 min), a wyraźnie mniejsze niż doba.
@@ -53,10 +56,15 @@ function isTransientError(err: unknown): boolean {
   );
 }
 
-async function refreshWithRetry(topic: string, topicEn: string | null): Promise<RefreshResult> {
+async function refreshWithRetry(
+  supabase: SupabaseClient,
+  box: RefreshableBox,
+  skipIfUnchanged: boolean,
+): Promise<RefreshOutcome> {
+  const topic = box.topic;
   for (let attempt = 0; ; attempt++) {
     try {
-      return await fetchRssBullets(topic, topicEn);
+      return await refreshBoxNews(supabase, box, { skipIfUnchanged });
     } catch (err) {
       // Limitu (429) ani błędów merytorycznych nie ponawiamy - tylko przejściowe przeciążenia.
       if (err instanceof RateLimitError || !isTransientError(err) || attempt >= RETRY_DELAYS_MS.length) {
@@ -86,10 +94,23 @@ async function main() {
 
   const supabase = createAdminClient();
 
-  const { data: boxes, error } = await supabase.from('boxes').select('id, topic, topic_en');
+  const { data: allBoxes, error } = await supabase
+    .from('boxes')
+    .select('id, topic, topic_en, user_id');
   if (error) {
     console.error('Nie udało się pobrać boxów:', error.message);
     process.exit(1);
+  }
+
+  // Konta bez aktywności od tygodnia pomijamy - nikt tych newsów nie czyta, a każdy temat
+  // to zapytanie do Gemini dziennie. Po powrocie użytkownika box odświeży się następnego ranka.
+  const inactiveUsers = force ? new Set<string>() : await loadInactiveUserIds(supabase);
+  const boxes = (allBoxes ?? []).filter((box) => !inactiveUsers.has(box.user_id));
+  const inactiveCount = (allBoxes?.length ?? 0) - boxes.length;
+  if (inactiveCount > 0) {
+    console.log(
+      `Pomijam ${inactiveCount} boxów z kont nieaktywnych od ponad ${INACTIVE_AFTER_DAYS} dni.`,
+    );
   }
 
   // Zbiór boxów, które mają już świeży snapshot - pomijamy je (chyba że FORCE_REFRESH).
@@ -108,36 +129,29 @@ async function main() {
     for (const row of recent ?? []) freshBoxIds.add(row.box_id);
   }
 
-  const total = boxes?.length ?? 0;
-  const toRefresh = (boxes ?? []).filter((box) => !freshBoxIds.has(box.id));
+  const total = boxes.length;
+  const toRefresh = boxes.filter((box) => !freshBoxIds.has(box.id));
   console.log(
     `Start odświeżania: ${total} boxów, do zrobienia ${toRefresh.length}` +
       (force ? ' (FORCE - pełne odświeżenie).' : `, świeżych pominiętych ${total - toRefresh.length}.`),
   );
 
   let refreshed = 0;
+  let unchanged = 0;
   let skipped = 0;
   const failures: { boxId: string; topic: string; error: string }[] = [];
 
   for (const box of toRefresh) {
     try {
-      const { bullets, topicEn } = await refreshWithRetry(box.topic, box.topic_en);
+      // Wymuszone odświeżenie ma zawsze dać nowy snapshot, więc nie pomija „bez zmian".
+      const outcome = await refreshWithRetry(supabase, box, !force);
 
-      // Tłumaczenie policzone przez silnik zapisujemy w cache, żeby nie liczyć go ponownie.
-      if (topicEn && topicEn !== box.topic_en) {
-        await supabase.from('boxes').update({ topic_en: topicEn }).eq('id', box.id);
-      }
-
-      const { error: insertError } = await supabase
-        .from('snapshots')
-        .insert({ box_id: box.id, items: bullets, method: METHOD });
-
-      if (insertError) {
-        failures.push({ boxId: box.id, topic: box.topic, error: insertError.message });
-        console.error(`✗ "${box.topic}" - zapis do bazy nieudany: ${insertError.message}`);
+      if (outcome.status === 'unchanged') {
+        unchanged++;
+        console.log(`= "${box.topic}" - nic nowego od poprzedniego odświeżenia, bez zmian.`);
       } else {
         refreshed++;
-        console.log(`✓ "${box.topic}" - ${bullets.length} newsów`);
+        console.log(`✓ "${box.topic}" - ${outcome.snapshot.items.length} newsów`);
       }
     } catch (err) {
       if (err instanceof NoFreshNewsError) {
@@ -161,6 +175,7 @@ async function main() {
 
   console.log(
     `\nPodsumowanie: odświeżono ${refreshed}/${toRefresh.length} próbowanych` +
+      (unchanged > 0 ? `, bez zmian (bez wołania modelu): ${unchanged}` : '') +
       (skipped > 0 ? `, bez świeżych newsów: ${skipped}` : '') +
       `, błędów: ${failures.length}.`,
   );

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Nav from '@/components/Nav';
+import Footer from '@/components/Footer';
 import { LinkIcon } from '@/components/icons';
+import { GITHUB_PROFILE_URL, REPO_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Kontakt',
@@ -9,7 +11,6 @@ export const metadata: Metadata = {
 };
 
 const EMAIL = 'gnatowski.adam.biz@gmail.com';
-const GITHUB = 'https://github.com/BadVilgo';
 
 export default function ContactPage() {
   return (
@@ -32,11 +33,18 @@ export default function ContactPage() {
               {EMAIL}
             </span>
           </a>
-          <a className="contact-row" href={GITHUB} target="_blank" rel="noreferrer">
+          <a className="contact-row" href={GITHUB_PROFILE_URL} target="_blank" rel="noreferrer">
             <span className="contact-label">GitHub</span>
             <span className="contact-value">
               <LinkIcon />
               github.com/BadVilgo
+            </span>
+          </a>
+          <a className="contact-row" href={REPO_URL} target="_blank" rel="noreferrer">
+            <span className="contact-label">Kod aplikacji</span>
+            <span className="contact-value">
+              <LinkIcon />
+              github.com/BadVilgo/newsy
             </span>
           </a>
         </div>
@@ -47,6 +55,8 @@ export default function ContactPage() {
           </a>
         </p>
       </article>
+
+      <Footer />
     </main>
   );
 }

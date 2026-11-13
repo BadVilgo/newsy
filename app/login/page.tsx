@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { usernameToEmail, isValidUsername, USERNAME_PATTERN } from '@/lib/username';
-import { NewsIcon, EyeIcon, EyeOffIcon } from '@/components/icons';
-
-const DEMO_USER = 'test-user';
-const DEMO_PASSWORD = 'test-password';
+import { DEMO_USER, DEMO_PASSWORD } from '@/lib/demoAccount';
+import { NewsIcon, EyeIcon, EyeOffIcon, ArrowLeftIcon } from '@/components/icons';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,6 +47,11 @@ export default function LoginPage() {
 
   return (
     <main className="auth-wrap">
+      <Link href="/" className="back-link">
+        <ArrowLeftIcon />
+        Strona główna
+      </Link>
+
       <div className="auth-card">
         <div className="auth-brand">
           <span className="brand-logo">
@@ -58,7 +62,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <h1 style={{ fontSize: 18, fontWeight: 500, margin: '0 0 16px' }}>
+        <h1 className="auth-title">
           {mode === 'signin' ? 'Zaloguj się' : 'Załóż konto'}
         </h1>
 
@@ -66,6 +70,8 @@ export default function LoginPage() {
           <p className="demo-hint">
             Konto demo jest już stworzone - kliknij <strong>Zaloguj</strong>.<br />
             Login: <code>{DEMO_USER}</code> · Hasło: <code>{DEMO_PASSWORD}</code>
+            <br />
+            Wolisz tylko zerknąć? <Link href="/demo">Zobacz demo bez logowania</Link>.
           </p>
         )}
 

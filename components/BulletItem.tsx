@@ -2,23 +2,12 @@
 
 import { useState } from 'react';
 import type { Bullet } from '@/lib/types';
+import { formatDateTime } from '@/lib/format';
 import { LinkIcon } from './icons';
-
-/** "26.07, 18:15" w czasie lokalnym; niepoprawna data nie wywraca renderu. */
-function formatPublished(iso: string): string | null {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString('pl-PL', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 export default function BulletItem({ bullet }: { bullet: Bullet }) {
   const [showSources, setShowSources] = useState(false);
-  const published = bullet.published ? formatPublished(bullet.published) : null;
+  const published = bullet.published ? formatDateTime(bullet.published) : null;
 
   return (
     <li className="bullet">

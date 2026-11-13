@@ -3,14 +3,16 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Box as BoxType, Snapshot } from '@/lib/types';
+import { useViewTransition } from '@/lib/useViewTransition';
 import BoxCard from './Box';
 import AddBox from './AddBox';
 import Skeleton from './Skeleton';
 import EmptyState from './EmptyState';
 import Nav from './Nav';
+import Footer from './Footer';
 
 const PAGE_NOTE =
-  'Do 30 newsów z Google News RSS na temat, z których Gemini wybiera do 4 najważniejszych i pisze własne opisy po polsku. Tylko wiadomości z ostatnich 48h, z priorytetem dla ostatniej doby.';
+  'Do 30 historii z Google News RSS na temat, z których Gemini wybiera do 4 najważniejszych i pisze własne opisy po polsku. Tylko wiadomości z ostatnich 48h, z priorytetem dla ostatniej doby i bez powtórek z poprzedniego dnia.';
 
 const BOXES_KEY = ['boxes'] as const;
 
@@ -31,6 +33,9 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragEnabledId, setDragEnabledId] = useState<string | null>(null);
+  // Animuje zmiany układu kafelków (strzałki, dodanie, usunięcie). Przeciąganie myszą zostaje
+  // bez przejścia - tam kafelki i tak przesuwają się na żywo pod kursorem.
+  const withTransition = useViewTransition();
 
   const { data: boxes = [], isPending, error } = useQuery({
     queryKey: BOXES_KEY,
@@ -44,7 +49,7 @@ export default function Dashboard() {
 
   const addBox = useMutation({
     mutationFn: (topic: string) => request<{ box: BoxType }>('/api/boxes', json({ topic })),
-    onSuccess: ({ box }) => patchBoxes((prev) => [...prev, box]),
+    onSuccess: ({ box }) => withTransition(() => patchBoxes((prev) => [...prev, box])),
   });
 
   // Usuwanie i edycja są optimistic: UI reaguje natychmiast, a przy błędzie wracamy
@@ -118,15 +123,19 @@ export default function Dashboard() {
   }
 
   function moveBox(id: string, dir: -1 | 1) {
-    patchBoxes((prev) => {
-      const idx = prev.findIndex((b) => b.id === id);
-      const target = idx + dir;
-      if (idx < 0 || target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return next;
+    // Zapis kolejności musi być w tej samej funkcji co zmiana cache'a: przeglądarka woła ją
+    // dopiero po zrobieniu zrzutu „przed", więc kod za withTransition widziałby stary układ.
+    withTransition(() => {
+      patchBoxes((prev) => {
+        const idx = prev.findIndex((b) => b.id === id);
+        const target = idx + dir;
+        if (idx < 0 || target < 0 || target >= prev.length) return prev;
+        const next = [...prev];
+        [next[idx], next[target]] = [next[target], next[idx]];
+        return next;
+      });
+      persistCurrentOrder();
     });
-    persistCurrentOrder();
   }
 
   async function handleAdd(topic: string) {
@@ -162,40 +171,38 @@ export default function Dashboard() {
       {!isPending && boxes.length === 0 && <EmptyState onAdd={handleAdd} />}
 
       {!isPending && boxes.length > 0 && (
-        <>
-          <div className="box-grid">
-            {boxes.map((box, i) => (
-              <div
-                key={box.id}
-                className={`grid-item${draggingId === box.id ? ' dragging' : ''}`}
-                draggable={dragEnabledId === box.id}
-                onDragStart={() => setDraggingId(box.id)}
-                onDragEnter={() => handleDragEnter(box.id)}
-                onDragOver={(e) => e.preventDefault()}
-                onDragEnd={handleDragEnd}
-              >
-                <BoxCard
-                  box={box}
-                  onDelete={(id) => deleteBox.mutate(id)}
-                  onEdit={async (id, topic) => {
-                    await editBox.mutateAsync({ id, topic });
-                  }}
-                  onRefresh={handleRefresh}
-                  onDragHandleDown={() => setDragEnabledId(box.id)}
-                  onMove={moveBox}
-                  isFirst={i === 0}
-                  isLast={i === boxes.length - 1}
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="footer-note">
-            <span className="pulse-dot" />
-            auto-odświeżanie codziennie o 8:00
-          </div>
-        </>
+        <div className="box-grid">
+          {boxes.map((box, i) => (
+            <div
+              key={box.id}
+              className={`grid-item${draggingId === box.id ? ' dragging' : ''}`}
+              // Unikalna nazwa pozwala przeglądarce śledzić TEN kafelek między układami
+              // i płynnie przesunąć go na nowe miejsce (View Transitions API).
+              style={{ viewTransitionName: `box-${box.id}` }}
+              draggable={dragEnabledId === box.id}
+              onDragStart={() => setDraggingId(box.id)}
+              onDragEnter={() => handleDragEnter(box.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnd={handleDragEnd}
+            >
+              <BoxCard
+                box={box}
+                onDelete={(id) => withTransition(() => deleteBox.mutate(id))}
+                onEdit={async (id, topic) => {
+                  await editBox.mutateAsync({ id, topic });
+                }}
+                onRefresh={handleRefresh}
+                onDragHandleDown={() => setDragEnabledId(box.id)}
+                onMove={moveBox}
+                isFirst={i === 0}
+                isLast={i === boxes.length - 1}
+              />
+            </div>
+          ))}
+        </div>
       )}
+
+      <Footer />
     </main>
   );
 }

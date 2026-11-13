@@ -1,16 +1,28 @@
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+import Footer from '@/components/Footer';
+import ReadOnlyBox from '@/components/ReadOnlyBox';
+import { ArrowRightIcon } from '@/components/icons';
+import { boxesWithNews, fetchDemoBoxes } from '@/lib/demo';
 
-// Strona wizytowkowa - w pelni statyczna (brak dostepu do ciasteczek), wiec Next
-// prerenderuje ja na etapie builda: szybki LCP i tresc widoczna dla crawlerow.
-export default function HomePage() {
+// Strona wizytówkowa jest prerenderowana (brak dostępu do ciasteczek): szybki LCP i treść
+// widoczna dla crawlerów. Podgląd kafelków pochodzi z konta demo i odświeża się przez ISR -
+// najwyżej raz na 15 minut, niezależnie od liczby wejść.
+export const revalidate = 900;
+
+// Ile kafelków z tablicy demo pokazujemy na stronie głównej.
+const PREVIEW_COUNT = 2;
+
+export default async function HomePage() {
+  const preview = boxesWithNews(await fetchDemoBoxes()).slice(0, PREVIEW_COUNT);
+
   return (
     <main className="container">
       <Nav />
 
       <section className="hero">
         <span className="hero-badge">
-          <span className="pulse-dot" />
+          <span className="pulse-dot" aria-hidden="true" />
           odświeżane codziennie o 8:00
         </span>
         <h1 className="hero-title">
@@ -24,8 +36,8 @@ export default function HomePage() {
           scrollowania dziesięciu portali.
         </p>
         <div className="hero-actions">
-          <Link href="/newsy" className="btn btn-primary btn-lg">
-            Otwórz Newsy
+          <Link href="/demo" className="btn btn-primary btn-lg">
+            Zobacz demo
           </Link>
           <Link href="/o-aplikacji" className="btn btn-lg">
             Jak to działa
@@ -33,7 +45,33 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="feature-grid">
+      {/* Prawdziwe kafelki z konta demo. Gdy danych nie da się pobrać, sekcja po prostu znika. */}
+      {preview.length > 0 && (
+        <section className="preview" aria-labelledby="preview-title">
+          <div className="preview-head">
+            <div>
+              <h2 id="preview-title" className="preview-title">
+                Tak wygląda tablica dziś
+              </h2>
+              <p className="preview-sub">
+                Prawdziwe dane z konta demo, bez logowania. Kliknij „Źródła", żeby przejść do
+                artykułów.
+              </p>
+            </div>
+            <Link href="/demo" className="preview-link">
+              Cała tablica demo
+              <ArrowRightIcon />
+            </Link>
+          </div>
+          <div className="preview-grid">
+            {preview.map((box) => (
+              <ReadOnlyBox key={box.id} box={box} headingLevel={3} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="feature-grid" aria-label="Najważniejsze funkcje">
         <article className="feature-card">
           <h2 className="feature-title">Tablica tematów</h2>
           <p className="feature-text">
@@ -64,10 +102,7 @@ export default function HomePage() {
         </article>
       </section>
 
-      <div className="footer-note">
-        <span className="pulse-dot" />
-        auto-odświeżanie codziennie o 8:00
-      </div>
+      <Footer />
     </main>
   );
 }

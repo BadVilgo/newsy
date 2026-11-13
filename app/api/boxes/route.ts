@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { translateTopic } from '@/lib/rssEngine';
-
-// Snapshoty zapisujemy z metoda 'rss' (silnik w Pythonie). Stare wpisy z poprzedniego
-// wariantu (grounding, method='search') zostaja w bazie, ale ich nie pokazujemy.
-const METHOD = 'rss';
+import { METHOD } from '@/lib/refreshBox';
+import { touchLastSeen } from '@/lib/activeUsers';
 
 export async function GET() {
   const supabase = await createClient();
@@ -13,13 +11,18 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Niezalogowany.' }, { status: 401 });
 
-  const { data: boxes, error } = await supabase
-    .from('boxes')
-    .select('id, topic, topic_en, position, created_at, snapshots(id, fetched_at, items)')
-    .eq('snapshots.method', METHOD)
-    .order('position', { ascending: true })
-    .order('fetched_at', { referencedTable: 'snapshots', ascending: false })
-    .limit(2, { referencedTable: 'snapshots' });
+  // Wejście na tablicę = znak życia. Dzięki niemu codzienne odświeżanie wie, których kont
+  // nie warto już odświeżać (zapis najwyżej raz na dobę, równolegle z odczytem boxów).
+  const [{ data: boxes, error }] = await Promise.all([
+    supabase
+      .from('boxes')
+      .select('id, topic, topic_en, position, created_at, snapshots(id, fetched_at, items)')
+      .eq('snapshots.method', METHOD)
+      .order('position', { ascending: true })
+      .order('fetched_at', { referencedTable: 'snapshots', ascending: false })
+      .limit(2, { referencedTable: 'snapshots' }),
+    touchLastSeen(supabase, user),
+  ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ boxes: boxes ?? [] });

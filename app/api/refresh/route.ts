@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { fetchRssBullets, RateLimitError } from '@/lib/rssEngine';
+import { RateLimitError } from '@/lib/rssEngine';
+import { refreshBoxNews } from '@/lib/refreshBox';
 
 export const maxDuration = 60;
 
@@ -52,21 +53,13 @@ export async function POST(request: Request) {
   if (boxError || !box) return NextResponse.json({ error: 'Box nie istnieje.' }, { status: 404 });
 
   try {
-    const { bullets, topicEn } = await fetchRssBullets(box.topic, box.topic_en);
-
-    // Gdy silnik musial policzyc tlumaczenie sam (brak cache), zapisujemy je na przyszlosc.
-    if (topicEn && topicEn !== box.topic_en) {
-      await supabase.from('boxes').update({ topic_en: topicEn }).eq('id', box.id);
+    // Ręczne odświeżenie zawsze oddaje świeży snapshot (bez pomijania „bez zmian") - użytkownik
+    // kliknął, więc ma zobaczyć wynik. Pamięć poprzedniego dnia nadal działa.
+    const outcome = await refreshBoxNews(supabase, box, { skipIfUnchanged: false });
+    if (outcome.status !== 'refreshed') {
+      return NextResponse.json({ error: 'Brak nowych wiadomości.' }, { status: 404 });
     }
-
-    const { data: snapshot, error: insertError } = await supabase
-      .from('snapshots')
-      .insert({ box_id: box.id, items: bullets, method: 'rss' })
-      .select('id, fetched_at, items')
-      .single();
-
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
-    return NextResponse.json({ snapshot });
+    return NextResponse.json({ snapshot: outcome.snapshot });
   } catch (err) {
     if (err instanceof RateLimitError) {
       return NextResponse.json({ error: err.message }, { status: 429 });

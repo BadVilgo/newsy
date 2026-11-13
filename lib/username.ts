@@ -1,6 +1,9 @@
 export const USERNAME_EMAIL_DOMAIN = 'newsy.local';
 
-export const USERNAME_PATTERN = '[a-zA-Z0-9._-]{3,30}';
+// Wzorzec dla atrybutu HTML `pattern`. Przeglądarki kompilują go z flagą `v` (unicodeSets),
+// w której myślnik w klasie znaków MUSI być poprzedzony ukośnikiem - bez tego Chrome zgłasza
+// błąd w konsoli i po cichu wyłącza walidację pola.
+export const USERNAME_PATTERN = '[a-zA-Z0-9._\\-]{3,30}';
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,30}$/;
 
 export function isValidUsername(username: string): boolean {

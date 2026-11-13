@@ -124,4 +124,37 @@ describe('Dashboard', () => {
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]).toEqual(['box-2', 'box-1']);
   });
+
+  // W przeglądarce z View Transitions API zmiana układu dzieje się wewnątrz przejścia:
+  // przeglądarka sama woła funkcję aktualizującą. Kolejność musi zapisać się tak samo.
+  it('przestawia kafelki przez View Transitions API, gdy przeglądarka je wspiera', async () => {
+    const user = userEvent.setup();
+    const calls: string[][] = [];
+    const startViewTransition = vi.fn((update: () => Promise<void> | void) => {
+      void update();
+      return {};
+    });
+    Object.assign(document, { startViewTransition });
+    mockApi((url, init) => {
+      if (url.includes('/api/boxes/reorder')) {
+        calls.push(JSON.parse(String(init?.body)).ids);
+        return ok({ ok: true });
+      }
+      return ok({ boxes });
+    });
+
+    try {
+      renderDashboard();
+      await screen.findByRole('heading', { name: 'UAP' });
+      await user.click(screen.getByRole('button', { name: /Przenieś temat "UAP" niżej/ }));
+
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(startViewTransition).toHaveBeenCalledTimes(1);
+      expect(calls[0]).toEqual(['box-2', 'box-1']);
+      const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+      expect(headings).toEqual(['Polska', 'UAP']);
+    } finally {
+      delete (document as { startViewTransition?: unknown }).startViewTransition;
+    }
+  });
 });

@@ -8,11 +8,16 @@ from fastapi import HTTPException
 import rss_engine as rss
 
 
-def item(url: str, hours_ago: float, region: str = "pl", headline: str | None = None) -> dict:
+def item(
+    url: str,
+    hours_ago: float,
+    region: str = "pl",
+    headline: str | None = None,
+    source: str = "Serwis",
+) -> dict:
     return {
         "headline": headline or f"Naglowek {url}",
-        "source": "Serwis",
-        "summary": "Opis",
+        "source": source,
         "url": url,
         "ts": time.time() - hours_ago * 3600,
         "published": "2026-07-26 12:00",
@@ -21,9 +26,6 @@ def item(url: str, hours_ago: float, region: str = "pl", headline: str | None = 
 
 
 class TestParsowanie:
-    def test_strip_html_czysci_tagi_i_encje(self):
-        assert rss.strip_html("<a href='x'>Tekst &amp;   spacje</a>") == "Tekst & spacje"
-
     def test_split_headline_oddziela_zrodlo_po_ostatnim_myslniku(self):
         assert rss.split_headline("Rzad przyjal ustawe - Radio - TVN24") == (
             "Rzad przyjal ustawe - Radio",
@@ -200,6 +202,26 @@ class TestSelectAndSummarize:
         assert bullety[0]["sources"][0]["url"] == "https://b"
         assert bullety[0]["published"].startswith("20")
 
+    def test_dolacza_linki_innych_redakcji_z_tej_samej_historii(self, monkeypatch):
+        historie = rss.group_similar(
+            [
+                item(f"https://{nazwa}", i + 1, headline="Sejm przyjal ustawe o podatku cyfrowym", source=nazwa)
+                for i, nazwa in enumerate(["onet", "wp", "interia", "rmf", "tvn"])
+            ]
+        )
+        monkeypatch.setattr(
+            rss, "get_client", lambda: fake_client([{"index": 0, "summary": "Sejm przyjal ustawe."}])
+        )
+
+        bullet = rss.select_and_summarize("podatki", historie)[0]
+
+        assert [s["url"] for s in bullet["sources"]] == [
+            "https://onet",
+            "https://wp",
+            "https://interia",
+        ]
+        assert len(bullet["sources"]) == rss.MAX_SOURCES_PER_BULLET
+
     def test_pomija_niepoprawne_indeksy_i_duplikaty(self, monkeypatch):
         pozycje = [item("https://a", 1)]
         monkeypatch.setattr(
@@ -261,9 +283,171 @@ class TestSelectAndSummarize:
         assert "MAX_TOKENS" in exc.value.detail
 
 
+class TestGrupowanie:
+    def test_tokeny_ignoruja_diakrytyki_wielkosc_liter_i_odmiane(self):
+        assert rss.headline_tokens("Rząd przyjął USTAWĘ o KSeF") == rss.headline_tokens(
+            "rzad przyjal ustawy o ksef"
+        )
+
+    def test_liczby_odrozniaja_historie(self):
+        a = rss.headline_tokens("Nvidia podala wyniki za kwartal 2")
+        b = rss.headline_tokens("Nvidia podala wyniki za kwartal 3")
+        assert a != b
+
+    def test_laczy_te_sama_historie_z_roznych_redakcji(self):
+        pozycje = [
+            item("a", 1, headline="Sejm przyjal ustawe o podatku cyfrowym", source="Onet"),
+            item("b", 2, headline="Sejm przyjął ustawę o podatku cyfrowym od gigantow", source="WP"),
+            item("c", 3, headline="Kurs dolara najnizej od trzech lat", source="Bankier"),
+        ]
+
+        historie = rss.group_similar(pozycje)
+
+        assert [h["url"] for h in historie] == ["a", "c"]
+        assert historie[0]["source_count"] == 2
+        assert [r["url"] for r in historie[0]["related"]] == ["b"]
+        assert historie[1]["source_count"] == 1
+
+    def test_nie_skleja_roznych_historii_o_tym_samym_podmiocie(self):
+        pozycje = [
+            item("a", 1, headline="Nvidia pokazala nowy uklad dla centrow danych"),
+            item("b", 2, headline="Nvidia traci na gieldzie po decyzji o clach"),
+        ]
+        assert len(rss.group_similar(pozycje)) == 2
+
+    def test_krotkie_naglowki_laczy_tylko_gdy_identyczne(self):
+        pozycje = [
+            item("a", 1, headline="Nvidia rekord"),
+            item("b", 2, headline="Nvidia spadek"),
+            item("c", 3, headline="Nvidia rekord", source="Inny"),
+        ]
+        historie = rss.group_similar(pozycje)
+        assert [h["url"] for h in historie] == ["a", "b"]
+        assert historie[0]["source_count"] == 2
+
+    def test_reprezentantem_jest_polski_artykul_nawet_gdy_starszy(self):
+        pozycje = [
+            item("us", 1, "us", headline="OpenAI prezentuje model GPT-6 dla firm", source="Reuters"),
+            item("pl", 2, "pl", headline="OpenAI prezentuje model GPT-6 dla firm", source="PAP"),
+        ]
+        historia = rss.group_similar(pozycje)[0]
+        assert historia["url"] == "pl"
+        assert historia["region"] == "pl"
+        # Do sprawdzania "czy jest cos nowego" liczy sie najswiezszy artykul w grupie.
+        assert historia["newest_ts"] == pozycje[0]["ts"]
+
+    def test_ta_sama_redakcja_liczy_sie_raz(self):
+        pozycje = [
+            item("a", 1, headline="Sejm przyjal ustawe o podatku cyfrowym", source="Onet"),
+            item("b", 2, headline="Sejm przyjal ustawe o podatku cyfrowym", source="onet"),
+        ]
+        historia = rss.group_similar(pozycje)[0]
+        assert historia["source_count"] == 1
+        assert historia["related"] == []
+
+    def test_przy_nadmiarze_zostaja_historie_wielozrodlowe(self, monkeypatch):
+        monkeypatch.setattr(rss, "RSS_ITEMS", 3)
+        # Najstarsza historia ma dwa zrodla - bez priorytetu wypadlaby jako czwarta z kolei.
+        pula = [
+            item("n1", 1, headline="Pierwsza osobna wiadomosc dnia alfa"),
+            item("n2", 2, headline="Druga calkiem inna informacja beta"),
+            item("n3", 3, headline="Trzecia niezalezna depesza gamma"),
+            item("w1", 4, headline="Sejm przyjal ustawe o podatku cyfrowym", source="Onet"),
+            item("w2", 5, headline="Sejm przyjal ustawe o podatku cyfrowym", source="WP"),
+        ]
+
+        historie = rss.shortlist(pula)
+
+        assert [h["url"] for h in historie] == ["n1", "n2", "w1"]
+
+
+class TestPamiec:
+    def test_odrzuca_artykuly_pokazane_w_poprzednim_snapshocie(self):
+        pula = [item("nowy", 1), item("wczorajszy", 2), item("inny", 3)]
+        historie = rss.shortlist(pula, frozenset({"wczorajszy"}))
+        assert [h["url"] for h in historie] == ["nowy", "inny"]
+
+    def test_prompt_zawiera_wczorajsze_opisy_i_liczbe_zrodel(self):
+        historie = rss.group_similar(
+            [
+                item("a", 1, headline="Sejm przyjal ustawe o podatku cyfrowym", source="Onet"),
+                item("b", 2, headline="Sejm przyjal ustawe o podatku cyfrowym", source="WP"),
+            ]
+        )
+        prompt = rss.build_prompt("podatki", historie, 1, ["Rzad zapowiedzial podatek cyfrowy."])
+
+        assert "relacjonuje: 2 zrodel" in prompt
+        assert "- Rzad zapowiedzial podatek cyfrowy." in prompt
+        assert "NIE wybieraj" in prompt
+        # Opis z RSS byl duplikatem naglowka - nie moze wrocic do promptu.
+        assert "| opis:" not in prompt
+
+    def test_prompt_bez_pamieci_nie_ma_sekcji_o_poprzednich(self):
+        prompt = rss.build_prompt("temat", [item("a", 1)], 1, [])
+        assert "widzial juz" not in prompt
+        assert "relacjonuje" not in prompt
+
+    def test_has_new_items_uwzglednia_zapas_na_opoznienie_indeksowania(self):
+        teraz = time.time()
+        since = teraz - 10 * 3600
+        tuz_przed = [item("a", 10 + rss.NEW_ITEM_GRACE_HOURS - 0.5)]
+        duzo_wczesniej = [item("b", 10 + rss.NEW_ITEM_GRACE_HOURS + 1)]
+
+        assert rss.has_new_items([item("nowy", 1)], since) is True
+        assert rss.has_new_items(tuz_przed, since) is True
+        assert rss.has_new_items(duzo_wczesniej, since) is False
+        assert rss.has_new_items([], since) is False
+
+    def test_parse_since_obsluguje_format_supabase_i_smieci(self):
+        assert rss.parse_since("2026-07-26T18:00:00.123456+00:00") == pytest.approx(
+            rss.parse_since("2026-07-26T18:00:00.123456Z")
+        )
+        assert rss.parse_since("nie-data") is None
+        assert rss.parse_since(None) is None
+
+
+class TestTlumaczenie:
+    def test_uzywa_tanszego_modelu(self, monkeypatch):
+        uzyte = []
+
+        class Models:
+            def generate_content(self, **kwargs):
+                uzyte.append(kwargs["model"])
+                return FakeResponse("AI agents")
+
+        monkeypatch.setattr(rss, "get_client", lambda: type("C", (), {"models": Models()})())
+
+        assert rss.translate_topic("Postepy nad agentami AI") == "AI agents"
+        assert uzyte == [rss.TRANSLATE_MODEL]
+        assert rss.TRANSLATE_MODEL != rss.GEMINI_MODEL
+
+    def test_spada_na_model_glowny_gdy_tani_zawiedzie(self, monkeypatch):
+        uzyte = []
+
+        class Models:
+            def generate_content(self, **kwargs):
+                uzyte.append(kwargs["model"])
+                if kwargs["model"] == rss.TRANSLATE_MODEL:
+                    raise RuntimeError("404 model not found")
+                return FakeResponse('"AI agents"')
+
+        monkeypatch.setattr(rss, "get_client", lambda: type("C", (), {"models": Models()})())
+
+        assert rss.translate_topic("Postepy nad agentami AI") == "AI agents"
+        assert uzyte == [rss.TRANSLATE_MODEL, rss.GEMINI_MODEL]
+
+    def test_oddaje_oryginalny_temat_gdy_oba_modele_zawioda(self, monkeypatch):
+        class Models:
+            def generate_content(self, **kwargs):
+                raise RuntimeError("503")
+
+        monkeypatch.setattr(rss, "get_client", lambda: type("C", (), {"models": Models()})())
+        assert rss.translate_topic("UAP") == "UAP"
+
+
 class TestRun:
     def test_404_gdy_nie_ma_nic_swiezego(self, monkeypatch):
-        monkeypatch.setattr(rss, "fetch_rss_items", lambda t, e: ([], None))
+        monkeypatch.setattr(rss, "build_pool", lambda t, e: ([], None))
         with pytest.raises(HTTPException) as exc:
             rss.run("temat", None)
         assert exc.value.status_code == 404
@@ -273,3 +457,55 @@ class TestRun:
         with pytest.raises(HTTPException) as exc:
             rss.run("   ", None)
         assert exc.value.status_code == 400
+
+    def test_bez_zmian_gdy_nic_nie_doszlo_od_poprzedniego_snapshotu(self, monkeypatch):
+        pula = [item("stary-1", 20), item("stary-2", 22)]
+        monkeypatch.setattr(rss, "build_pool", lambda t, e: (pula, None))
+        monkeypatch.setattr(
+            rss, "get_client", lambda: pytest.fail("model nie powinien byc wolany")
+        )
+        since = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() - 10 * 3600))
+
+        bullety, _, unchanged = rss.run("temat", None, [], since)
+
+        assert unchanged is True
+        assert bullety == []
+
+    def test_bez_zmian_gdy_wszystko_swieze_bylo_juz_pokazane(self, monkeypatch):
+        pula = [item("pokazany", 1)]
+        monkeypatch.setattr(rss, "build_pool", lambda t, e: (pula, None))
+        monkeypatch.setattr(
+            rss, "get_client", lambda: pytest.fail("model nie powinien byc wolany")
+        )
+        poprzednie = [rss.PreviousItem(text="Byl juz taki news.", urls=["pokazany"])]
+        since = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() - 10 * 3600))
+
+        _, _, unchanged = rss.run("temat", None, poprzednie, since)
+
+        assert unchanged is True
+
+    def test_wybiera_tylko_z_nowych_gdy_cos_doszlo(self, monkeypatch):
+        pula = [item("nowy", 1), item("pokazany", 2)]
+        monkeypatch.setattr(rss, "build_pool", lambda t, e: (pula, None))
+        client = fake_client([{"index": 0, "summary": "Nowa wiadomosc."}])
+        monkeypatch.setattr(rss, "get_client", lambda: client)
+        poprzednie = [rss.PreviousItem(text="Byl juz taki news.", urls=["pokazany"])]
+        since = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() - 10 * 3600))
+
+        bullety, _, unchanged = rss.run("temat", None, poprzednie, since)
+
+        assert unchanged is False
+        assert [b["sources"][0]["url"] for b in bullety] == ["nowy"]
+
+    def test_reczne_odswiezenie_bez_since_zawsze_oddaje_newsy(self, monkeypatch):
+        # Bez `since` (klik uzytkownika) nie pomijamy - nawet gdy cala pula byla juz pokazana.
+        pula = [item("pokazany", 1)]
+        monkeypatch.setattr(rss, "build_pool", lambda t, e: (pula, None))
+        client = fake_client([{"index": 0, "summary": "Ten sam news."}])
+        monkeypatch.setattr(rss, "get_client", lambda: client)
+        poprzednie = [rss.PreviousItem(text="Byl juz taki news.", urls=["pokazany"])]
+
+        bullety, _, unchanged = rss.run("temat", None, poprzednie)
+
+        assert unchanged is False
+        assert [b["text"] for b in bullety] == ["Ten sam news."]
