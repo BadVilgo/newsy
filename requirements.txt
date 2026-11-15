@@ -1,4 +1,7 @@
-fastapi
-feedparser
-google-genai
-pydantic
+# Wersje przypiete: Vercel instaluje zaleznosci przy kazdym deployu, a niepinowana
+# google-genai 3.0 zmienila domyslna wersje API Gemini i zepsula silnik (XI 2026).
+# Aktualizacje rob swiadomie: podbij wersje, odpal `pytest tests` i sprawdz deploy.
+fastapi==0.163.1
+feedparser==6.0.14
+google-genai==3.3.0
+pydantic==2.13.5

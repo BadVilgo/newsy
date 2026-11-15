@@ -46,7 +46,9 @@ from datetime import datetime, timezone
 
 import feedparser
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import JSONResponse
 from google import genai
+from google.genai import errors as genai_errors
 from pydantic import BaseModel
 
 # Ile HISTORII (pozycji po zgrupowaniu podobnych naglowkow) podajemy modelowi do selekcji.
@@ -118,7 +120,36 @@ REGIONS = {
     "us": "hl=en-US&gl=US&ceid=US:en",
 }
 
+# Wersja API Gemini ustawiona JAWNIE. google-genai 3.0 (XI 2026) zmienil domyslna wersje
+# z `v1beta` na `v1`, a deploy Vercela instaluje najnowsza paczke - po deployu 13.11.2026
+# kazde wywolanie modelu konczylo sie wyjatkiem i silnik oddawal goly status 500.
+# `response_schema` i `thinking_config`, z ktorych korzystamy, sa wspierane w `v1beta`.
+GEMINI_API_VERSION = "v1beta"
+
 app = FastAPI(title="newsy RSS engine")
+
+
+@app.exception_handler(genai_errors.APIError)
+async def gemini_error_handler(_request, exc: genai_errors.APIError):
+    """Blad API Gemini -> JSON z czytelnym `detail` (wczesniej: goly 500 bez tresci).
+    429 przekazujemy dalej jako 429 - warstwa TS zamienia go na RateLimitError."""
+    code = getattr(exc, "code", None)
+    status = 429 if code == 429 else 502
+    return JSONResponse(
+        status_code=status,
+        content={"detail": f"Gemini API {code} {getattr(exc, 'status', '') or ''}: "
+                           f"{(getattr(exc, 'message', '') or str(exc))[:300]}".strip()},
+    )
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(_request, exc: Exception):
+    """Kazdy inny nieobsluzony wyjatek tez zwraca `detail` - bez tego w UI i w logach
+    GitHub Actions widac tylko "Silnik RSS zwrocil status 500" i nie da sie ustalic przyczyny."""
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Blad silnika RSS ({type(exc).__name__}): {str(exc)[:300]}"},
+    )
 
 _client: genai.Client | None = None
 
@@ -129,7 +160,9 @@ def get_client() -> genai.Client:
     if not api_key:
         raise HTTPException(status_code=500, detail="Brak GEMINI_API_KEY w srodowisku.")
     if _client is None:
-        _client = genai.Client(api_key=api_key)
+        _client = genai.Client(
+            api_key=api_key, http_options={"api_version": GEMINI_API_VERSION}
+        )
     return _client
 
 
