@@ -509,3 +509,49 @@ class TestRun:
 
         assert unchanged is False
         assert [b["text"] for b in bullety] == ["Ten sam news."]
+
+
+class TestKlientGeminiIBledy:
+    """Regresja z 13.11.2026: google-genai 3.0 zmienil domyslne API na `v1`, a wyjatek
+    z Gemini wychodzil z silnika jako goly 500 bez `detail`."""
+
+    def test_klient_uzywa_jawnej_wersji_api_v1beta(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        monkeypatch.setattr(rss, "_client", None)
+        client = rss.get_client()
+        assert client._api_client._http_options.api_version == "v1beta"
+        monkeypatch.setattr(rss, "_client", None)
+
+    def _post_z_wyjatkiem(self, monkeypatch, exc):
+        from fastapi.testclient import TestClient
+
+        monkeypatch.delenv("RSS_ENGINE_SECRET", raising=False)
+
+        def boom(*args, **kwargs):
+            raise exc
+
+        monkeypatch.setattr(rss, "run", boom)
+        client = TestClient(rss.app, raise_server_exceptions=False)
+        return client.post("/api/rss", json={"topic": "temat"})
+
+    def test_blad_gemini_zwraca_502_z_opisem(self, monkeypatch):
+        from google.genai import errors
+
+        exc = errors.ClientError(400, {"error": {"message": "Unknown name", "status": "INVALID_ARGUMENT"}})
+        res = self._post_z_wyjatkiem(monkeypatch, exc)
+        assert res.status_code == 502
+        assert "Gemini API 400" in res.json()["detail"]
+        assert "Unknown name" in res.json()["detail"]
+
+    def test_limit_gemini_zwraca_429(self, monkeypatch):
+        from google.genai import errors
+
+        exc = errors.ClientError(429, {"error": {"message": "quota", "status": "RESOURCE_EXHAUSTED"}})
+        res = self._post_z_wyjatkiem(monkeypatch, exc)
+        assert res.status_code == 429
+        assert "RESOURCE_EXHAUSTED" in res.json()["detail"]
+
+    def test_nieoczekiwany_wyjatek_ma_detail(self, monkeypatch):
+        res = self._post_z_wyjatkiem(monkeypatch, KeyError("ts"))
+        assert res.status_code == 500
+        assert "KeyError" in res.json()["detail"]
