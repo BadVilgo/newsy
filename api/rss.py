@@ -45,7 +45,8 @@ import calendar
 from datetime import datetime, timezone
 
 import feedparser
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from google import genai
 from pydantic import BaseModel
 
@@ -129,7 +130,9 @@ def get_client() -> genai.Client:
     if not api_key:
         raise HTTPException(status_code=500, detail="Brak GEMINI_API_KEY w srodowisku.")
     if _client is None:
-        _client = genai.Client(api_key=api_key)
+        # Wersja API podana wprost: google-genai 3.x zmienil domyslna z v1beta na v1, a nasze
+        # zapytania (thinking_config, response_schema) sa sprawdzone tylko na v1beta.
+        _client = genai.Client(api_key=api_key, http_options={"api_version": "v1beta"})
     return _client
 
 
@@ -229,7 +232,12 @@ def collect_fresh(query: str, region: str) -> list[dict]:
     return [it for it in items if it["ts"] is not None and it["ts"] >= cutoff]
 
 
-def translate_topic(topic: str) -> str:
+def describe_error(err: Exception) -> str:
+    """Krotki, czytelny opis bledu do logow i do pola `detail` odpowiedzi."""
+    return f"{type(err).__name__}: {str(err)[:300]}"
+
+
+def translate_topic(topic: str) -> str | None:
     """Zamienia polski temat na zwiezle angielskie haslo wyszukiwania.
     Powod: do wydania US trzeba wyslac angielskie slowa kluczowe - polska fraza opisowa
     (np. "Postepy nad agentami AI") nie dopasowuje tam praktycznie niczego."""
@@ -241,6 +249,8 @@ def translate_topic(topic: str) -> str:
     )
     # Najpierw tani model; gdyby byl niedostepny (wycofany, przeciazony), ta sama prosba
     # idzie do modelu glownego. Tlumaczenie liczymy raz na temat, wiec zapas nic nie kosztuje.
+    # Gdy oba zawioda, zwracamy None: nieudane "tlumaczenie" NIE moze trafic do cache w bazie,
+    # bo wtedy polskie haslo zostaloby zapisane jako angielskie na stale.
     for model in dict.fromkeys([TRANSLATE_MODEL, GEMINI_MODEL]):
         try:
             response = get_client().models.generate_content(
@@ -256,9 +266,10 @@ def translate_topic(topic: str) -> str:
         except HTTPException:
             # Brak klucza API to blad konfiguracji, nie modelu - zapasowy model nic nie zmieni.
             raise
-        except Exception:  # noqa: BLE001 - kazdy blad modelu oznacza "sprobuj nastepnego"
+        except Exception as err:  # noqa: BLE001 - kazdy blad modelu oznacza "sprobuj nastepnego"
+            print(f"Tlumaczenie tematu modelem {model} nieudane - {describe_error(err)}")
             continue
-    return topic
+    return None
 
 
 def headline_tokens(headline: str) -> frozenset[str]:
@@ -343,8 +354,11 @@ def build_pool(topic: str, topic_en: str | None) -> tuple[list[dict], str | None
 
     if len(pool) < MIN_PL_ITEMS:
         used_topic_en = (topic_en or "").strip() or translate_topic(topic)
+        # Bez tlumaczenia szukamy po oryginalnym hasle (nazwy wlasne i tak zadzialaja),
+        # ale niczego nie zwracamy do zapisania w cache.
+        query_en = used_topic_en or topic
         seen = {it["url"] for it in pool}
-        pool = pool + [it for it in collect_fresh(used_topic_en, "us") if it["url"] not in seen]
+        pool = pool + [it for it in collect_fresh(query_en, "us") if it["url"] not in seen]
 
     pool.sort(key=lambda it: it["ts"], reverse=True)
     return pool, used_topic_en
@@ -449,6 +463,25 @@ def build_prompt(topic: str, items: list[dict], count: int, previous_texts: list
     )
 
 
+def generate_selection(client, prompt: str):
+    """Jedno zapytanie o selekcje (wydzielone, zeby obsluga bledow byla w jednym miejscu)."""
+    return client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": SELECTION_SCHEMA,
+            # Gemini 2.5 Flash domyslnie "mysli", a tokeny myslenia zjadaja TEN SAM
+            # budzet wyjscia co odpowiedz. Pomiary: 950-3800 tokenow myslenia przy
+            # ~200 tokenach odpowiedzi - przy skoku w gore JSON bywal ucinany
+            # (finish_reason=MAX_TOKENS) i parsowanie legalo. Do wyboru 4 pozycji
+            # z gotowej listy myslenie nie jest potrzebne, a bez niego jest taniej.
+            "thinking_config": {"thinking_budget": 0},
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
+        },
+    )
+
+
 def select_and_summarize(
     topic: str, items: list[dict], previous_texts: list[str] | None = None
 ) -> list[dict]:
@@ -459,22 +492,14 @@ def select_and_summarize(
     parsed = None
     last_finish = None
     last_raw = ""
+    client = get_client()
     for _ in range(SELECTION_ATTEMPTS):
-        response = get_client().models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": SELECTION_SCHEMA,
-                # Gemini 2.5 Flash domyslnie "mysli", a tokeny myslenia zjadaja TEN SAM
-                # budzet wyjscia co odpowiedz. Pomiary: 950-3800 tokenow myslenia przy
-                # ~200 tokenach odpowiedzi - przy skoku w gore JSON bywal ucinany
-                # (finish_reason=MAX_TOKENS) i parsowanie legalo. Do wyboru 4 pozycji
-                # z gotowej listy myslenie nie jest potrzebne, a bez niego jest taniej.
-                "thinking_config": {"thinking_budget": 0},
-                "max_output_tokens": MAX_OUTPUT_TOKENS,
-            },
-        )
+        try:
+            response = generate_selection(client, prompt)
+        except Exception as err:  # noqa: BLE001 - blad API lub sieci, nie odpowiedz modelu
+            raise HTTPException(
+                status_code=502, detail=f"Gemini nie odpowiedzial ({describe_error(err)})"
+            ) from err
         candidate = (response.candidates or [None])[0]
         last_finish = getattr(candidate, "finish_reason", None)
         last_raw = (response.text or "").strip()
@@ -568,6 +593,14 @@ def run(
 
     bullets = select_and_summarize(trimmed, items, previous_texts[:PREVIOUS_LIMIT])
     return bullets, used_topic_en, False
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(_request: Request, err: Exception):
+    """Nieprzewidziany blad zamiast golego "Internal Server Error" oddaje swoja przyczyne -
+    bez tego jedynym sladem w aplikacji i w GitHub Actions bylo "status 500"."""
+    print(f"Nieobsluzony blad silnika - {describe_error(err)}")
+    return JSONResponse(status_code=500, content={"detail": f"Blad silnika ({describe_error(err)})"})
 
 
 # Vercel przekazuje pelna sciezke do funkcji ASGI - rejestrujemy oba warianty,

@@ -1,4 +1,7 @@
 fastapi
 feedparser
-google-genai
+# google-genai 3.x (11.2026) zmienil domyslne API z v1beta na v1 i klienta HTTP na httpx2 -
+# po automatycznej aktualizacji przy deployu kazde zapytanie do Gemini konczylo sie bledem.
+# Wersje 3.x wpuszczamy dopiero po sprawdzeniu.
+google-genai>=2.33,<3
 pydantic

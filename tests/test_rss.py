@@ -436,13 +436,72 @@ class TestTlumaczenie:
         assert rss.translate_topic("Postepy nad agentami AI") == "AI agents"
         assert uzyte == [rss.TRANSLATE_MODEL, rss.GEMINI_MODEL]
 
-    def test_oddaje_oryginalny_temat_gdy_oba_modele_zawioda(self, monkeypatch):
+    def test_zwraca_none_gdy_oba_modele_zawioda(self, monkeypatch):
         class Models:
             def generate_content(self, **kwargs):
                 raise RuntimeError("503")
 
         monkeypatch.setattr(rss, "get_client", lambda: type("C", (), {"models": Models()})())
-        assert rss.translate_topic("UAP") == "UAP"
+        assert rss.translate_topic("UAP") is None
+
+    # Regresja z 11.2026: nieudane tlumaczenie wracalo jako polskie haslo i trafialo do cache
+    # w bazie (boxes.topic_en) na stale.
+    def test_nieudane_tlumaczenie_nie_trafia_do_cache(self, monkeypatch):
+        zapytania = []
+
+        def fake_collect(query, region):
+            zapytania.append((query, region))
+            return []
+
+        monkeypatch.setattr(rss, "collect_fresh", fake_collect)
+        monkeypatch.setattr(rss, "translate_topic", lambda t: None)
+
+        pool, topic_en = rss.build_pool("Postepy nad agentami AI", None)
+
+        assert topic_en is None
+        assert ("Postepy nad agentami AI", "us") in zapytania
+
+
+class TestBledyGemini:
+    def test_blad_api_daje_czytelne_502(self, monkeypatch):
+        class Models:
+            def generate_content(self, **kwargs):
+                raise RuntimeError("400 INVALID_ARGUMENT Unknown name thinkingConfig")
+
+        monkeypatch.setattr(rss, "get_client", lambda: type("C", (), {"models": Models()})())
+
+        with pytest.raises(HTTPException) as exc:
+            rss.select_and_summarize("temat", [item("Naglowek", 1)])
+        assert exc.value.status_code == 502
+        assert "thinkingConfig" in exc.value.detail
+
+    def test_nieprzewidziany_blad_ma_przyczyne_w_odpowiedzi(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        def boom(*args, **kwargs):
+            raise ValueError("cos poszlo nie tak")
+
+        monkeypatch.setattr(rss, "run", boom)
+        response = TestClient(rss.app, raise_server_exceptions=False).post(
+            "/api/rss", json={"topic": "UAP"}
+        )
+
+        assert response.status_code == 500
+        assert "ValueError: cos poszlo nie tak" in response.json()["detail"]
+
+    def test_klient_uzywa_v1beta(self, monkeypatch):
+        uzyte = {}
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                uzyte.update(kwargs)
+
+        monkeypatch.setenv("GEMINI_API_KEY", "x")
+        monkeypatch.setattr(rss, "_client", None)
+        monkeypatch.setattr(rss.genai, "Client", FakeClient)
+
+        rss.get_client()
+        assert uzyte["http_options"] == {"api_version": "v1beta"}
 
 
 class TestRun:
